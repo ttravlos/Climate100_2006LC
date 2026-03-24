@@ -8,8 +8,10 @@ https://youtu.be/IqOUl0FLdPE
 
 Thank you to @AxesOfEvil for the work recreating the FYT obfuscated code into an Android library.
 
-# Renamed ClimateLC100 for the 2006 Land Cruiser Model 100
-Some changes to adapt to the canbus module specific to a 2006 LC100 and the Teyes CC3
+# Renamed Climate100_2006LC. Changes are specific for the 2006 Land Cruiser Model 100
+# Your mileage may vary!
+Some changes to adapt to the canbus module specific to a 2006 LC100 and the Teyes CC3.
+Changes to allow split screen mode to be more readable.
 
 Giant thanks to Ryan for the tremendous amount of work creating the app!
 
