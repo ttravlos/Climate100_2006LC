@@ -1,320 +1,252 @@
 package com.ryansteckler.lx470climate
 
-import android.Manifest
-import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.PorterDuff
-import android.media.Image
-import android.os.Build
 import android.os.Bundle
-import android.os.Environment
-import android.text.method.MovementMethod
-import android.text.method.ScrollingMovementMethod
 import android.view.MotionEvent
 import android.view.View
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
-import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import com.aoe.fytcanbusmonitor.ModuleCodes.MODULE_CODE_CANBUS
 import com.aoe.fytcanbusmonitor.ModuleCodes.MODULE_CODE_CAN_UP
 import com.aoe.fytcanbusmonitor.ModuleCodes.MODULE_CODE_MAIN
 import com.aoe.fytcanbusmonitor.ModuleCodes.MODULE_CODE_SOUND
 import com.aoe.fytcanbusmonitor.MsToolkitConnection
-import com.aoe.fytcanbusmonitor.RemoteModuleProxy
-import java.io.File
-import java.io.FileWriter
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 class MainActivity : AppCompatActivity(), View.OnTouchListener {
 
-    private val remoteProxy = RemoteModuleProxy()
-    private lateinit var logFile: File
+    private lateinit var diagnosticLogger: DiagnosticLogger
+    private val ipcConnections = mutableListOf<IPCConnection>()
+    private var observersRegistered = false
 
-    var windowOn: Boolean = false
-    var faceOn: Boolean = false
-    var feetOn: Boolean = false
-    var acOn: Boolean = false
-    var recircOn: Boolean = false
-    var defrostOn: Boolean = false
-    var autoOn: Boolean = false
+    private var windowOn = false
+    private var faceOn = false
+    private var feetOn = false
+    private var acOn = false
+    private var recircOn = false
+    private var defrostOn = false
+    private var autoOn = false
 
-    private fun writeLog(message: String) {
-        // Debug logging disabled - re-enable by uncommenting the lines below
-        // try {
-        //     val timestamp = SimpleDateFormat("HH:mm:ss.SSS", Locale.US).format(Date())
-        //     FileWriter(logFile, true).use { it.write("$timestamp $message\n") }
-        // } catch (e: Exception) {
-        //     // write failed silently
-        // }
-    }
-
-    @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // Request storage permission at runtime (required on Android 10+)
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
-            != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this,
-                arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                        Manifest.permission.READ_EXTERNAL_STORAGE), 1)
-        }
+        diagnosticLogger = DiagnosticLogger(applicationContext)
+        diagnosticLogger.log("=== Climate100 1.02 started ===")
+        diagnosticLogger.logMemory("onCreate")
 
-        // Pick first writable log location
-        val candidates = listOf(
-            File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "climate_debug.txt"),
-            File(Environment.getExternalStorageDirectory(), "climate_debug.txt"),
-            File("/sdcard/Download/climate_debug.txt"),
-            File("/sdcard/climate_debug.txt"),
-            File(getExternalFilesDir(null), "climate_debug.txt"),
-            File(filesDir, "climate_debug.txt")
-        )
-        logFile = candidates.firstOrNull { f ->
-            try { f.parentFile?.mkdirs(); f.createNewFile() || f.exists() } catch (e: Exception) { false }
-        } ?: File(filesDir, "climate_debug.txt")
-        writeLog("=== Climate app started === logFile=${logFile.absolutePath}")
+        listOf(
+            R.id.btnTempPlus,
+            R.id.btnTempMinus,
+            R.id.btnAuto,
+            R.id.btnVent,
+            R.id.btnRecirc,
+            R.id.btnAC,
+            R.id.btnDefrost,
+            R.id.btnFanPlus,
+            R.id.btnFanMinus,
+            R.id.btnFanOff
+        ).forEach { id -> findViewById<ImageButton>(id).setOnTouchListener(this) }
 
-        findViewById<ImageButton>(R.id.btnTempPlus).setOnTouchListener(this)
-        findViewById<ImageButton>(R.id.btnTempMinus).setOnTouchListener(this)
-        findViewById<ImageButton>(R.id.btnAuto).setOnTouchListener(this)
-        findViewById<ImageButton>(R.id.btnVent).setOnTouchListener(this)
-        findViewById<ImageButton>(R.id.btnRecirc).setOnTouchListener(this)
-        findViewById<ImageButton>(R.id.btnAC).setOnTouchListener(this)
-        findViewById<ImageButton>(R.id.btnDefrost).setOnTouchListener(this)
-        findViewById<ImageButton>(R.id.btnFanPlus).setOnTouchListener(this)
-        findViewById<ImageButton>(R.id.btnFanMinus).setOnTouchListener(this)
-        findViewById<ImageButton>(R.id.btnFanOff).setOnTouchListener(this)
-
-        findViewById<TextView>(R.id.text_view).append("hi")
-        findViewById<TextView>(R.id.text_view).movementMethod = ScrollingMovementMethod()
-
-
-//        buttonUp.setOnClickListener {
-//            var rm = MsToolkitConnection.instance.remoteToolkit?.getRemoteModule(MODULE_CODE_MAIN)
-//                        Log.e("RYANNNNNNNNN", "rm is $rm")
-//                          rm?.cmd(0, intArrayOf(11), null, null)
-//                Log.e("RYANCC3", "Sending message")
-//                var b = Bundle()
-//                val i: Int = 0
-//                b.putInt("param0", i)
-//                SyuJniNative.getInstance().syu_jni_command(50, b, null)
-//                Log.e("RYANCC3", "Sent message")
-//            Log.e("RYANNNNNNNNN", "RTK: ${MsToolkitConnection.instance.remoteToolkit}")
-//
-//            var rm = MsToolkitConnection.instance.remoteToolkit?.getRemoteModule(MODULE_CODE_CANBUS)
-//            Log.e("RYANNNNNNNNN", "RM: $rm")
-//
-//            rm?.cmd(2, intArrayOf(48, 1), null, null)
-//            Log.e("RYANNNNNNNNN", "Sent message")
-//            }
-
+        createConnectionsOnce()
     }
 
     override fun onStart() {
         super.onStart()
-        writeLog("onStart: connecting to IPC service")
-        ModuleCallback.init(this)
-        connectMain()
-        connectCanbus()
-        connectSound()
-        connectCanUp()
-        MsToolkitConnection.instance.connect(this)
-        writeLog("onStart: connect() called")
+        diagnosticLogger.log("LIFECYCLE onStart")
+        registerObservers()
+        MsToolkitConnection.instance.connect(applicationContext)
     }
 
+    override fun onStop() {
+        diagnosticLogger.log("LIFECYCLE onStop")
+        diagnosticLogger.logMemory("onStop")
+        unregisterObservers()
+        super.onStop()
+    }
+
+    override fun onDestroy() {
+        diagnosticLogger.log("LIFECYCLE onDestroy")
+        unregisterObservers()
+        super.onDestroy()
+    }
 
     override fun onTouch(view: View?, motionEvent: MotionEvent?): Boolean {
-        var canBusCommand: Int = -1
-        when (view?.id) {
-            R.id.btnTempPlus->{ canBusCommand = 3 }
-            R.id.btnTempMinus->{ canBusCommand = 2 }
-            R.id.btnAuto->{ canBusCommand = 21 }
-            R.id.btnVent->{ canBusCommand = 36 }
-            R.id.btnRecirc->{ canBusCommand = 25 }
-            R.id.btnAC->{ canBusCommand = 23 }
-            R.id.btnDefrost->{ canBusCommand = 18 }
-            R.id.btnFanPlus->{ canBusCommand = 10 }
-            R.id.btnFanMinus->{ canBusCommand = 9 }
-            R.id.btnFanOff->{ canBusCommand = 1 }
+        if (view !is ImageView || motionEvent == null) return false
+
+        val canBusCommand = when (view.id) {
+            R.id.btnTempPlus -> 3
+            R.id.btnTempMinus -> 2
+            R.id.btnAuto -> 21
+            R.id.btnVent -> 36
+            R.id.btnRecirc -> 25
+            R.id.btnAC -> 23
+            R.id.btnDefrost -> 18
+            R.id.btnFanPlus -> 10
+            R.id.btnFanMinus -> 9
+            R.id.btnFanOff -> 1
+            else -> return false
         }
 
-        val image = view as ImageView
-        when (motionEvent?.action) {
+        when (motionEvent.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                var highlight = Color.argb(50, 255, 255, 255)
-                if (view.id == R.id.btnTempPlus) {
-                    highlight = Color.argb(50, 255, 0, 0)
+                val highlight = when (view.id) {
+                    R.id.btnTempPlus -> Color.argb(50, 255, 0, 0)
+                    R.id.btnTempMinus -> Color.argb(50, 0, 0, 255)
+                    else -> Color.argb(50, 255, 255, 255)
                 }
-                else if (view.id == R.id.btnTempMinus) {
-                    highlight = Color.argb(50, 0, 0, 255)
-                }
-
-                image?.setColorFilter(highlight, PorterDuff.Mode.SRC_ATOP)
-                image?.invalidate()
-
-                // Send the press command
-                if (canBusCommand != -1) {
-                    writeLog("BUTTON DOWN canBusCommand=$canBusCommand viewId=${view.id}")
-                    val rm = MsToolkitConnection.instance.remoteToolkit?.getRemoteModule(MODULE_CODE_CANBUS)
-                    rm?.cmd(0, intArrayOf(canBusCommand, 1), null, null)
-                    view.performClick()
-                }
+                view.setColorFilter(highlight, PorterDuff.Mode.SRC_ATOP)
+                view.invalidate()
+                sendCanButtonCommand(canBusCommand, pressed = true)
+                view.performClick()
             }
-            MotionEvent.ACTION_UP -> {
-                image?.clearColorFilter()
-                image?.invalidate()
 
-                // Send the release command
-                if (canBusCommand != -1) {
-                    val rm = MsToolkitConnection.instance.remoteToolkit?.getRemoteModule(MODULE_CODE_CANBUS)
-                    rm?.cmd(0, intArrayOf(canBusCommand, 0), null, null)
-                }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                view.clearColorFilter()
+                view.invalidate()
+                sendCanButtonCommand(canBusCommand, pressed = false)
             }
         }
 
         return true
     }
 
-
-
-
-    private fun connectMain() {
-        val callback = ModuleCallback("Main", findViewById(R.id.text_view))
-        val connection = IPCConnection(MODULE_CODE_MAIN)
-        for (i in 0..119) {
-            connection.addCallback(callback, i)
-        }
-        MsToolkitConnection.instance.addObserver(connection)
+    private fun sendCanButtonCommand(command: Int, pressed: Boolean) {
+        diagnosticLogger.log("COMMAND code=$command pressed=$pressed")
+        val remoteModule = MsToolkitConnection.instance.remoteToolkit
+            ?.getRemoteModule(MODULE_CODE_CANBUS)
+        remoteModule?.cmd(0, intArrayOf(command, if (pressed) 1 else 0), null, null)
     }
 
-    private fun connectCanbus() {
-        val callback = ModuleCallback("Canbus", findViewById(R.id.text_view))
-        val connection = IPCConnection(MODULE_CODE_CANBUS)
-        for (i in 0..50) {
-            connection.addCallback(callback, i)
-        }
-        for (i in 1000..1036) {
-            connection.addCallback(callback, i)
-        }
-        MsToolkitConnection.instance.addObserver(connection)
+    private fun createConnectionsOnce() {
+        if (ipcConnections.isNotEmpty()) return
+
+        ipcConnections += createConnection("Main", MODULE_CODE_MAIN, 0..119)
+        ipcConnections += createConnection("Canbus", MODULE_CODE_CANBUS, (0..50) + (1000..1036))
+        ipcConnections += createConnection("Sound", MODULE_CODE_SOUND, 0..49)
+        ipcConnections += createConnection("CanUp", MODULE_CODE_CAN_UP, listOf(100))
     }
 
-    private fun connectSound() {
-        val callback = ModuleCallback("Sound", findViewById(R.id.text_view))
-        val connection = IPCConnection(MODULE_CODE_SOUND)
-        for (i in 0..49) {
-            connection.addCallback(callback, i)
+    private fun createConnection(
+        systemName: String,
+        moduleCode: Int,
+        updateCodes: Iterable<Int>
+    ): IPCConnection {
+        val callback = ModuleCallback(systemName, ::canBusNotify)
+        return IPCConnection(moduleCode).apply {
+            updateCodes.forEach { updateCode -> addCallback(callback, updateCode) }
         }
-        MsToolkitConnection.instance.addObserver(connection)
     }
 
-    private fun connectCanUp() {
-        val callback = ModuleCallback("CanUp", findViewById(R.id.text_view))
-        val connection = IPCConnection(MODULE_CODE_CAN_UP)
-        connection.addCallback(callback, 100)
-        MsToolkitConnection.instance.addObserver(connection)
+    private fun registerObservers() {
+        if (observersRegistered) return
+        ipcConnections.forEach(MsToolkitConnection.instance::addObserver)
+        observersRegistered = true
+        diagnosticLogger.log("IPC registered observers=${ipcConnections.size}")
     }
 
-    fun canBusNotify(systemName: String, updateCode: Int, intArray: IntArray?, floatArray: FloatArray?, strArray: Array<String?>?) {
-        // Log everything to file
-        val intStr = intArray?.joinToString(",") ?: "null"
-        writeLog("system=$systemName updateCode=$updateCode ints=[$intStr]")
+    private fun unregisterObservers() {
+        if (!observersRegistered) return
+        ipcConnections.forEach(MsToolkitConnection.instance::removeObserver)
+        observersRegistered = false
+        diagnosticLogger.log("IPC unregistered observers=${ipcConnections.size}")
+    }
 
-        if (systemName.lowercase().equals("canbus")) {
-            if (updateCode in 1..16 || updateCode in 69..81 && updateCode != 77) {
-                findViewById<TextView>(R.id.text_view).append(
-                    "updateCode: " + updateCode + " value: " + intArray?.get(
-                        0
-                    ) + "\n"
-                )
+    private fun canBusNotify(
+        systemName: String,
+        updateCode: Int,
+        intArray: IntArray?,
+        floatArray: FloatArray?,
+        strArray: Array<String?>?
+    ) {
+        if (isFinishing || isDestroyed) return
+
+        val firstValue = intArray?.firstOrNull()
+        if (systemName.equals("Canbus", ignoreCase = true)) {
+            // Keep logs useful but bounded: record the Climate100-relevant updates only.
+            if (updateCode in CLIMATE_UPDATE_CODES) {
+                diagnosticLogger.log("CAN updateCode=$updateCode value=$firstValue")
             }
+
             when (updateCode) {
-                // Temperature setpoint - driver side (raw value + 64 = Fahrenheit)
-                27 -> {
-                    val newTemp = intArray?.get(0)
-                    val txtTemperature = findViewById<TextView>(R.id.txtTemperature)
-                    if (newTemp == -2) {
-                        txtTemperature.text = "LO"
-                    } else if (newTemp == -3) {
-                        txtTemperature.text = "HI"
-                    } else {
-                        val inF: Int? = newTemp?.plus(64)
-                        if (inF != null) {
-                            txtTemperature.text = inF.toString()
-                        }
-                    }
-                }
-                // Auto mode
+                // LC100-specific temperature setpoint mapping: raw value + 64 = Fahrenheit.
+                27 -> updateTemperature(firstValue)
+
                 4 -> {
-                    autoOn = intArray?.get(0) == 1
+                    autoOn = firstValue == 1
                     findViewById<TextView>(R.id.lblAuto).visibility =
                         if (autoOn) View.VISIBLE else View.INVISIBLE
                 }
-                // AC on/off
+
                 11 -> {
-                    acOn = intArray?.get(0) == 1
-                    findViewById<ImageView>(R.id.imgAC).setImageResource(if (acOn) R.drawable.img_ac_on else R.drawable.img_ac_off)
+                    acOn = firstValue == 1
+                    findViewById<ImageView>(R.id.imgAC).setImageResource(
+                        if (acOn) R.drawable.img_ac_on else R.drawable.img_ac_off
+                    )
                 }
-                // Recirc on/off
+
                 12 -> {
-                    recircOn = intArray?.get(0) == 1
-                    findViewById<ImageView>(R.id.imgRecirc).setImageResource(if (recircOn) R.drawable.img_recirc_on else R.drawable.img_recirc_off)
+                    recircOn = firstValue == 1
+                    findViewById<ImageView>(R.id.imgRecirc).setImageResource(
+                        if (recircOn) R.drawable.img_recirc_on else R.drawable.img_recirc_off
+                    )
                 }
-                // Windshield mode on/off (toggle - pressing again returns to previous vent mode)
+
                 15 -> {
-                    defrostOn = intArray?.get(0) == 1
-                    findViewById<ImageView>(R.id.imgDefrost).setImageResource(if (defrostOn) R.drawable.img_defrost_on else R.drawable.img_defrost_off)
+                    defrostOn = firstValue == 1
+                    findViewById<ImageView>(R.id.imgDefrost).setImageResource(
+                        if (defrostOn) R.drawable.img_defrost_on else R.drawable.img_defrost_off
+                    )
                 }
-                // Fan speed level
-                21 -> {
-                    val fanSpeed = intArray?.get(0)
-                    findViewById<TextView>(R.id.txtFanSpeed).text = fanSpeed.toString()
-                }
-                // Feet vent
+
+                21 -> findViewById<TextView>(R.id.txtFanSpeed).text = firstValue?.toString() ?: "—"
+
                 18 -> {
-                    feetOn = intArray?.get(0) == 1
+                    feetOn = firstValue == 1
                     handleVentStatus()
                 }
-                // Face vent
+
                 19 -> {
-                    faceOn = intArray?.get(0) == 1
+                    faceOn = firstValue == 1
                     handleVentStatus()
                 }
-                // Window vent (part of vent cycle, also activates with windshield button)
+
                 20 -> {
-                    windowOn = intArray?.get(0) == 1
+                    windowOn = firstValue == 1
                     handleVentStatus()
                 }
             }
         }
-
     }
-    fun handleVentStatus() {
-        // Ignore face+window combination — this is a transient state during vent mode cycling,
-        // not a valid final mode. Wait for the next update to settle into the correct state.
+
+    private fun updateTemperature(rawTemperature: Int?) {
+        val temperatureText = when (rawTemperature) {
+            null -> return
+            -2 -> "LO"
+            -3 -> "HI"
+            else -> (rawTemperature + 64).toString()
+        }
+        findViewById<TextView>(R.id.txtTemperature).text = temperatureText
+    }
+
+    private fun handleVentStatus() {
+        // This combination appears transiently while the LC100 CAN box cycles modes.
         if (faceOn && windowOn) return
 
-        if (faceOn && feetOn) {
-            findViewById<ImageView>(R.id.imgVents).setImageResource(R.drawable.img_vents_foot_face)
-        } else if (feetOn && windowOn) {
-            findViewById<ImageView>(R.id.imgVents).setImageResource(R.drawable.img_vents_foot_defrost)
-        } else if (feetOn) {
-            findViewById<ImageView>(R.id.imgVents).setImageResource(R.drawable.img_vents_foot)
-        } else if (faceOn) {
-            findViewById<ImageView>(R.id.imgVents).setImageResource(R.drawable.img_vents_face)
-        } else if (windowOn) {
-            findViewById<ImageView>(R.id.imgVents).setImageResource(R.drawable.img_vents_defrost_only)
-        } else {
-            findViewById<ImageView>(R.id.imgVents).setImageResource(R.drawable.img_vents_off)
+        val imageResource = when {
+            faceOn && feetOn -> R.drawable.img_vents_foot_face
+            feetOn && windowOn -> R.drawable.img_vents_foot_defrost
+            feetOn -> R.drawable.img_vents_foot
+            faceOn -> R.drawable.img_vents_face
+            windowOn -> R.drawable.img_vents_defrost_only
+            else -> R.drawable.img_vents_off
         }
+        findViewById<ImageView>(R.id.imgVents).setImageResource(imageResource)
     }
 
-
+    companion object {
+        private val CLIMATE_UPDATE_CODES = setOf(4, 11, 12, 15, 18, 19, 20, 21, 27)
+    }
 }
