@@ -8,11 +8,11 @@ android {
     compileSdk 33
 
     defaultConfig {
-        applicationId "com.ryansteckler.lx470climate"
+        applicationId "com.ttravlos.lc100climate.dev"
         minSdk 28
         targetSdk 32
-        versionCode 2
-        versionName "1.01"
+        versionCode 3
+        versionName "1.02-dev"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
