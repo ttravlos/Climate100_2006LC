@@ -1,0 +1,1332 @@
+diff -ruN a/launcher/build.gradle b/launcher/build.gradle
+--- a/launcher/build.gradle	2026-07-21 23:31:53.228402530 +0000
++++ b/launcher/build.gradle	2026-07-21 23:32:24.089238238 +0000
+@@ -11,8 +11,8 @@
+         applicationId "com.ttravlos.lc100launcher.dev"
+         minSdk 29
+         targetSdk 34
+-        versionCode 7
+-        versionName "0.7-dev"
++        versionCode 8
++        versionName "0.8-dev"
+ 
+         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+     }
+diff -ruN a/launcher/src/main/AndroidManifest.xml b/launcher/src/main/AndroidManifest.xml
+--- a/launcher/src/main/AndroidManifest.xml	2026-07-21 23:31:53.228490729 +0000
++++ b/launcher/src/main/AndroidManifest.xml	2026-07-21 23:32:24.089409260 +0000
+@@ -1,40 +1,38 @@
+-<?xml version="1.0" encoding="utf-8"?>
+-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+-
+-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+-
+-    <queries>
+-        <package android:name="com.google.android.apps.maps" />
+-        <package android:name="com.waze" />
+-        <package android:name="com.spotify.music" />
+-        <package android:name="com.google.android.apps.youtube.music" />
+-        <package android:name="com.ttravlos.climate100.dev" />
+-        <package android:name="com.ttravlos.climate100" />
+-        <package android:name="io.homeassistant.companion.android" />
+-        <package android:name="io.homeassistant.companion.android.minimal" />
+-
+-        <intent>
+-            <action android:name="android.intent.action.DIAL" />
+-            <data android:scheme="tel" />
+-        </intent>
+-    </queries>
+-
+-    <application
+-        android:allowBackup="true"
+-        android:icon="@mipmap/ic_launcher"
+-        android:label="@string/app_name"
+-        android:roundIcon="@mipmap/ic_launcher_round"
+-        android:supportsRtl="true"
+-        android:theme="@style/Theme.ClimateLC100">
+-        <activity
+-            android:name=".MainActivity"
+-            android:exported="true">
+-            <intent-filter>
+-                <action android:name="android.intent.action.MAIN" />
+-
+-                <category android:name="android.intent.category.LAUNCHER" />
+-            </intent-filter>
+-        </activity>
+-    </application>
+-
++<?xml version="1.0" encoding="utf-8"?>
++<manifest xmlns:android="http://schemas.android.com/apk/res/android">
++
++    <queries>
++        <package android:name="com.google.android.apps.maps" />
++        <package android:name="com.waze" />
++        <package android:name="com.spotify.music" />
++        <package android:name="com.google.android.apps.youtube.music" />
++        <package android:name="com.ttravlos.lc100climate.dev" />
++        <package android:name="com.syu.bt" />
++        <package android:name="io.homeassistant.companion.android" />
++        <package android:name="io.homeassistant.companion.android.minimal" />
++
++        <intent>
++            <action android:name="android.intent.action.DIAL" />
++            <data android:scheme="tel" />
++        </intent>
++    </queries>
++
++    <application
++        android:allowBackup="true"
++        android:icon="@mipmap/ic_launcher"
++        android:label="@string/app_name"
++        android:roundIcon="@mipmap/ic_launcher_round"
++        android:supportsRtl="true"
++        android:theme="@style/Theme.ClimateLC100">
++        <activity
++            android:name=".MainActivity"
++            android:exported="true">
++            <intent-filter>
++                <action android:name="android.intent.action.MAIN" />
++
++                <category android:name="android.intent.category.LAUNCHER" />
++            </intent-filter>
++        </activity>
++    </application>
++
+ </manifest>
+\ No newline at end of file
+diff -ruN a/launcher/src/main/java/com/ttravlos/lc100launcher/AppLauncher.kt b/launcher/src/main/java/com/ttravlos/lc100launcher/AppLauncher.kt
+--- a/launcher/src/main/java/com/ttravlos/lc100launcher/AppLauncher.kt	2026-07-21 23:31:53.228619048 +0000
++++ b/launcher/src/main/java/com/ttravlos/lc100launcher/AppLauncher.kt	2026-07-21 23:32:24.088231416 +0000
+@@ -1,131 +1,148 @@
+-package com.ttravlos.lc100launcher
+-
+-import android.content.Context
+-import android.content.Intent
+-import android.content.pm.PackageManager
+-import android.net.Uri
+-import android.provider.Settings
+-import android.widget.Toast
+-
+-object AppLauncher {
+-
+-    fun launchPackage(
+-        context: Context,
+-        packageNames: List<String>,
+-        displayName: String
+-    ) {
+-        for (packageName in packageNames) {
+-            val intent = context.packageManager.getLaunchIntentForPackage(packageName)
+-            if (intent != null) {
+-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+-                context.startActivity(intent)
+-                return
+-            }
+-        }
+-
+-        showMessage(context, "$displayName is not installed")
+-    }
+-
+-    fun openNavigation(context: Context) {
+-        val intent = Intent(
+-            Intent.ACTION_VIEW,
+-            Uri.parse("google.navigation:q=")
+-        ).apply {
+-            setPackage("com.google.android.apps.maps")
+-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+-        }
+-
+-        if (intent.resolveActivity(context.packageManager) != null) {
+-            context.startActivity(intent)
+-        } else {
+-            launchPackage(
+-                context,
+-                listOf("com.google.android.apps.maps", "com.waze"),
+-                "Navigation app"
+-            )
+-        }
+-    }
+-
+-    fun openMusic(context: Context) {
+-        if (launchAppByLabel(context, "YouTube Music")) {
+-            return
+-        }
+-
+-        launchPackage(
+-            context,
+-            listOf(
+-                "com.google.android.apps.youtube.music",
+-                "com.spotify.music",
+-                "com.google.android.music"
+-            ),
+-            "Music app"
+-        )
+-    }
+-
+-    fun openClimate(context: Context) {
+-        launchPackage(
+-            context,
+-            listOf("com.ttravlos.lc100climate.dev"),
+-            "Climate100 Dev"
+-        )
+-    }
+-
+-    fun writeDiagnostics(context: Context) {
+-        DiagnosticFileWriter.write(context)
+-    }
+-
+-    fun openHomeAssistant(context: Context) {
+-        launchPackage(
+-            context,
+-            listOf(
+-                "io.homeassistant.companion.android",
+-                "io.homeassistant.companion.android.minimal"
+-            ),
+-            "Home Assistant"
+-        )
+-    }
+-
+-    fun openApps(context: Context) {
+-        val intent = Intent(Settings.ACTION_SETTINGS).apply {
+-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+-        }
+-
+-        if (intent.resolveActivity(context.packageManager) != null) {
+-            context.startActivity(intent)
+-        } else {
+-            showMessage(context, "Settings is unavailable")
+-        }
+-    }
+-
+-    private fun launchAppByLabel(context: Context, targetLabel: String): Boolean {
+-        val packageManager = context.packageManager
+-        val launcherIntent = Intent(Intent.ACTION_MAIN).apply {
+-            addCategory(Intent.CATEGORY_LAUNCHER)
+-        }
+-
+-        val activities = packageManager.queryIntentActivities(
+-            launcherIntent,
+-            PackageManager.MATCH_DEFAULT_ONLY
+-        )
+-
+-        val match = activities.firstOrNull { resolveInfo ->
+-            resolveInfo.loadLabel(packageManager)
+-                ?.toString()
+-                ?.equals(targetLabel, ignoreCase = true) == true
+-        } ?: return false
+-
+-        val activityInfo = match.activityInfo
+-        val intent = Intent(Intent.ACTION_MAIN).apply {
+-            addCategory(Intent.CATEGORY_LAUNCHER)
+-            setClassName(activityInfo.packageName, activityInfo.name)
+-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+-        }
+-
+-        context.startActivity(intent)
+-        return true
+-    }
+-
+-    private fun showMessage(context: Context, message: String) {
+-        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+-    }
+-}
++package com.ttravlos.lc100launcher
++
++import android.content.ComponentName
++import android.content.Context
++import android.content.Intent
++import android.content.pm.PackageManager
++import android.net.Uri
++import android.provider.Settings
++import android.widget.Toast
++
++object AppLauncher {
++
++    fun launchPackage(
++        context: Context,
++        packageNames: List<String>,
++        displayName: String
++    ) {
++        for (packageName in packageNames) {
++            val intent = context.packageManager.getLaunchIntentForPackage(packageName)
++            if (intent != null) {
++                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
++                context.startActivity(intent)
++                return
++            }
++        }
++
++        showMessage(context, "$displayName is not installed")
++    }
++
++    fun openNavigation(context: Context) {
++        val intent = Intent(
++            Intent.ACTION_VIEW,
++            Uri.parse("google.navigation:q=")
++        ).apply {
++            setPackage("com.google.android.apps.maps")
++            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
++        }
++
++        if (intent.resolveActivity(context.packageManager) != null) {
++            context.startActivity(intent)
++        } else {
++            launchPackage(
++                context,
++                listOf("com.google.android.apps.maps", "com.waze"),
++                "Navigation app"
++            )
++        }
++    }
++
++    fun openMusic(context: Context) {
++        if (launchAppByLabel(context, "YouTube Music")) {
++            return
++        }
++
++        launchPackage(
++            context,
++            listOf(
++                "com.google.android.apps.youtube.music",
++                "com.spotify.music",
++                "com.google.android.music"
++            ),
++            "Music app"
++        )
++    }
++
++    fun openClimate(context: Context) {
++        launchPackage(
++            context,
++            listOf("com.ttravlos.lc100climate.dev"),
++            "Climate100 Dev"
++        )
++    }
++
++    fun openPhone(context: Context) {
++        val intent = Intent(Intent.ACTION_MAIN).apply {
++            component = ComponentName(
++                "com.syu.bt",
++                "com.syu.bt.BtAct"
++            )
++            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
++        }
++
++        try {
++            context.startActivity(intent)
++        } catch (_: Exception) {
++            launchPackage(
++                context,
++                listOf("com.syu.bt"),
++                "Bluetooth phone app"
++            )
++        }
++    }
++
++    fun openHomeAssistant(context: Context) {
++        launchPackage(
++            context,
++            listOf(
++                "io.homeassistant.companion.android",
++                "io.homeassistant.companion.android.minimal"
++            ),
++            "Home Assistant"
++        )
++    }
++
++    fun openApps(context: Context) {
++        val intent = Intent(Settings.ACTION_SETTINGS).apply {
++            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
++        }
++
++        if (intent.resolveActivity(context.packageManager) != null) {
++            context.startActivity(intent)
++        } else {
++            showMessage(context, "Settings is unavailable")
++        }
++    }
++
++    private fun launchAppByLabel(context: Context, targetLabel: String): Boolean {
++        val packageManager = context.packageManager
++        val launcherIntent = Intent(Intent.ACTION_MAIN).apply {
++            addCategory(Intent.CATEGORY_LAUNCHER)
++        }
++
++        val activities = packageManager.queryIntentActivities(
++            launcherIntent,
++            PackageManager.MATCH_DEFAULT_ONLY
++        )
++
++        val match = activities.firstOrNull { resolveInfo ->
++            resolveInfo.loadLabel(packageManager)
++                ?.toString()
++                ?.equals(targetLabel, ignoreCase = true) == true
++        } ?: return false
++
++        val activityInfo = match.activityInfo
++        val intent = Intent(Intent.ACTION_MAIN).apply {
++            addCategory(Intent.CATEGORY_LAUNCHER)
++            setClassName(activityInfo.packageName, activityInfo.name)
++            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
++        }
++
++        context.startActivity(intent)
++        return true
++    }
++
++    private fun showMessage(context: Context, message: String) {
++        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
++    }
++}
+diff -ruN a/launcher/src/main/java/com/ttravlos/lc100launcher/DiagnosticFileWriter.kt b/launcher/src/main/java/com/ttravlos/lc100launcher/DiagnosticFileWriter.kt
+--- a/launcher/src/main/java/com/ttravlos/lc100launcher/DiagnosticFileWriter.kt	2026-07-21 23:31:53.228706076 +0000
++++ b/launcher/src/main/java/com/ttravlos/lc100launcher/DiagnosticFileWriter.kt	1970-01-01 00:00:00.000000000 +0000
+@@ -1,201 +0,0 @@
+-package com.ttravlos.lc100launcher
+-
+-import android.content.ContentValues
+-import android.content.Context
+-import android.content.Intent
+-import android.content.pm.ApplicationInfo
+-import android.content.pm.PackageManager
+-import android.os.Build
+-import android.os.Environment
+-import android.os.Handler
+-import android.os.Looper
+-import android.provider.MediaStore
+-import android.widget.Toast
+-import java.io.OutputStreamWriter
+-import java.time.LocalDateTime
+-import java.time.format.DateTimeFormatter
+-
+-object DiagnosticFileWriter {
+-
+-    private const val FILE_NAME = "LC100Launcher_Diagnostics.txt"
+-    private val interestingTerms = listOf(
+-        "bt", "blu", "phone", "dial", "call", "teyes", "syu"
+-    )
+-
+-    fun write(context: Context) {
+-        val appContext = context.applicationContext
+-
+-        Toast.makeText(
+-            appContext,
+-            "Writing launcher diagnostics…",
+-            Toast.LENGTH_SHORT
+-        ).show()
+-
+-        Thread {
+-            val result = runCatching {
+-                val report = buildReport(appContext)
+-                writeToDownloads(appContext, report)
+-            }
+-
+-            Handler(Looper.getMainLooper()).post {
+-                result.onSuccess {
+-                    Toast.makeText(
+-                        appContext,
+-                        "Saved Download/$FILE_NAME",
+-                        Toast.LENGTH_LONG
+-                    ).show()
+-                }.onFailure { error ->
+-                    Toast.makeText(
+-                        appContext,
+-                        "Diagnostic write failed: ${error.message ?: error.javaClass.simpleName}",
+-                        Toast.LENGTH_LONG
+-                    ).show()
+-                }
+-            }
+-        }.start()
+-    }
+-
+-    private fun buildReport(context: Context): String {
+-        val packageManager = context.packageManager
+-        val launcherIntent = Intent(Intent.ACTION_MAIN).apply {
+-            addCategory(Intent.CATEGORY_LAUNCHER)
+-        }
+-
+-        val launchableActivities = packageManager.queryIntentActivities(
+-            launcherIntent,
+-            PackageManager.MATCH_DEFAULT_ONLY
+-        ).sortedBy {
+-            it.loadLabel(packageManager)?.toString()?.lowercase().orEmpty()
+-        }
+-
+-        val installedPackages = packageManager.getInstalledPackages(
+-            PackageManager.GET_ACTIVITIES
+-        ).sortedBy { it.packageName.lowercase() }
+-
+-        return buildString {
+-            appendLine("LC100 Launcher Diagnostics")
+-            appendLine("Generated: ${LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)}")
+-            appendLine()
+-
+-            appendLine("===== DEVICE =====")
+-            appendLine("Manufacturer: ${Build.MANUFACTURER}")
+-            appendLine("Brand: ${Build.BRAND}")
+-            appendLine("Model: ${Build.MODEL}")
+-            appendLine("Device: ${Build.DEVICE}")
+-            appendLine("Product: ${Build.PRODUCT}")
+-            appendLine("Android release: ${Build.VERSION.RELEASE}")
+-            appendLine("SDK: ${Build.VERSION.SDK_INT}")
+-            appendLine("Launcher package: ${context.packageName}")
+-            appendLine()
+-
+-            appendLine("===== LAUNCHABLE ACTIVITIES (${launchableActivities.size}) =====")
+-            launchableActivities.forEach { resolveInfo ->
+-                val info = resolveInfo.activityInfo
+-                val label = resolveInfo.loadLabel(packageManager)
+-                    ?.toString()
+-                    ?.ifBlank { "(no label)" }
+-                    ?: "(no label)"
+-
+-                appendLine("Label: $label")
+-                appendLine("Package: ${info.packageName}")
+-                appendLine("Activity: ${info.name}")
+-                appendLine("Exported: ${info.exported}")
+-                appendLine("Enabled: ${info.enabled}")
+-                appendLine()
+-            }
+-
+-            val interesting = installedPackages.filter { packageInfo ->
+-                val label = packageInfo.applicationInfo
+-                    ?.loadLabel(packageManager)
+-                    ?.toString()
+-                    .orEmpty()
+-                val searchable = "${packageInfo.packageName} $label".lowercase()
+-                interestingTerms.any(searchable::contains)
+-            }
+-
+-            appendLine("===== INTERESTING PACKAGES (${interesting.size}) =====")
+-            appendLine("Filter terms: ${interestingTerms.joinToString(", ")}")
+-            appendLine()
+-            interesting.forEach { packageInfo ->
+-                appendPackage(packageManager, packageInfo)
+-            }
+-
+-            appendLine("===== ALL INSTALLED PACKAGES (${installedPackages.size}) =====")
+-            installedPackages.forEach { packageInfo ->
+-                appendPackage(packageManager, packageInfo)
+-            }
+-        }
+-    }
+-
+-    private fun StringBuilder.appendPackage(
+-        packageManager: PackageManager,
+-        packageInfo: android.content.pm.PackageInfo
+-    ) {
+-        val applicationInfo = packageInfo.applicationInfo
+-        val label = applicationInfo
+-            ?.loadLabel(packageManager)
+-            ?.toString()
+-            ?.ifBlank { "(no label)" }
+-            ?: "(no label)"
+-        val systemApp = applicationInfo?.flags
+-            ?.and(ApplicationInfo.FLAG_SYSTEM) != 0
+-        val launchIntent = packageManager.getLaunchIntentForPackage(packageInfo.packageName)
+-
+-        appendLine("Label: $label")
+-        appendLine("Package: ${packageInfo.packageName}")
+-        appendLine("Version: ${packageInfo.versionName ?: "(unknown)"}")
+-        appendLine("System app: $systemApp")
+-        appendLine("Launch activity: ${launchIntent?.component?.className ?: "(none)"}")
+-
+-        val activities = packageInfo.activities
+-        if (activities.isNullOrEmpty()) {
+-            appendLine("Activities: (none returned)")
+-        } else {
+-            appendLine("Activities (${activities.size}):")
+-            activities.sortedBy { it.name.lowercase() }.forEach { activity ->
+-                appendLine(
+-                    "  ${activity.name} | exported=${activity.exported} | enabled=${activity.enabled}"
+-                )
+-            }
+-        }
+-        appendLine()
+-    }
+-
+-    private fun writeToDownloads(context: Context, report: String) {
+-        val resolver = context.contentResolver
+-        val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
+-        val relativePath = Environment.DIRECTORY_DOWNLOADS + "/"
+-
+-        val existingUri = resolver.query(
+-            collection,
+-            arrayOf(MediaStore.Downloads._ID),
+-            "${MediaStore.Downloads.DISPLAY_NAME}=? AND ${MediaStore.Downloads.RELATIVE_PATH}=?",
+-            arrayOf(FILE_NAME, relativePath),
+-            null
+-        )?.use { cursor ->
+-            if (cursor.moveToFirst()) {
+-                val id = cursor.getLong(
+-                    cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID)
+-                )
+-                android.content.ContentUris.withAppendedId(collection, id)
+-            } else {
+-                null
+-            }
+-        }
+-
+-        val uri = existingUri ?: resolver.insert(
+-            collection,
+-            ContentValues().apply {
+-                put(MediaStore.Downloads.DISPLAY_NAME, FILE_NAME)
+-                put(MediaStore.Downloads.MIME_TYPE, "text/plain")
+-                put(MediaStore.Downloads.RELATIVE_PATH, relativePath)
+-            }
+-        ) ?: error("MediaStore did not create the diagnostics file")
+-
+-        resolver.openOutputStream(uri, "wt")?.use { output ->
+-            OutputStreamWriter(output, Charsets.UTF_8).use { writer ->
+-                writer.write(report)
+-            }
+-        } ?: error("Unable to open the diagnostics file for writing")
+-    }
+-}
+diff -ruN a/launcher/src/main/java/com/ttravlos/lc100launcher/MainActivity.kt b/launcher/src/main/java/com/ttravlos/lc100launcher/MainActivity.kt
+--- a/launcher/src/main/java/com/ttravlos/lc100launcher/MainActivity.kt	2026-07-21 23:31:53.228807946 +0000
++++ b/launcher/src/main/java/com/ttravlos/lc100launcher/MainActivity.kt	2026-07-21 23:32:24.088781205 +0000
+@@ -1,372 +1,372 @@
+-package com.ttravlos.lc100launcher
+-
+-import android.os.Bundle
+-import androidx.activity.ComponentActivity
+-import androidx.activity.compose.setContent
+-import androidx.compose.foundation.background
+-import androidx.compose.foundation.border
+-import androidx.compose.foundation.layout.Arrangement
+-import androidx.compose.foundation.layout.Box
+-import androidx.compose.foundation.layout.Column
+-import androidx.compose.foundation.layout.Row
+-import androidx.compose.foundation.layout.Spacer
+-import androidx.compose.foundation.layout.fillMaxHeight
+-import androidx.compose.foundation.layout.fillMaxSize
+-import androidx.compose.foundation.layout.fillMaxWidth
+-import androidx.compose.foundation.layout.height
+-import androidx.compose.foundation.layout.padding
+-import androidx.compose.foundation.shape.RoundedCornerShape
+-import androidx.compose.material3.Button
+-import androidx.compose.material3.ButtonDefaults
+-import androidx.compose.material3.MaterialTheme
+-import androidx.compose.material3.Surface
+-import androidx.compose.material3.Text
+-import androidx.compose.material3.darkColorScheme
+-import androidx.compose.runtime.Composable
+-import androidx.compose.runtime.LaunchedEffect
+-import androidx.compose.runtime.getValue
+-import androidx.compose.runtime.mutableStateOf
+-import androidx.compose.runtime.remember
+-import androidx.compose.runtime.setValue
+-import androidx.compose.ui.Alignment
+-import androidx.compose.ui.Modifier
+-import androidx.compose.ui.graphics.Color
+-import androidx.compose.ui.platform.LocalContext
+-import androidx.compose.ui.text.font.FontWeight
+-import androidx.compose.ui.unit.dp
+-import androidx.compose.ui.unit.sp
+-import kotlinx.coroutines.delay
+-import java.time.LocalTime
+-import java.time.format.DateTimeFormatter
+-
+-class MainActivity : ComponentActivity() {
+-
+-    override fun onCreate(savedInstanceState: Bundle?) {
+-        super.onCreate(savedInstanceState)
+-
+-        setContent {
+-            MaterialTheme(
+-                colorScheme = darkColorScheme()
+-            ) {
+-                LauncherScreen()
+-            }
+-        }
+-    }
+-}
+-
+-private val ScreenBackground = Color(0xFF080B0F)
+-private val CardBackground = Color(0xFF151A20)
+-private val ButtonBackground = Color(0xFF202832)
+-private val BorderColor = Color(0xFF37414D)
+-private val PrimaryText = Color(0xFFF2F5F7)
+-private val SecondaryText = Color(0xFF9DA8B3)
+-private val Accent = Color(0xFF55B7FF)
+-
+-@Composable
+-private fun LauncherScreen() {
+-    Surface(
+-        modifier = Modifier.fillMaxSize(),
+-        color = ScreenBackground
+-    ) {
+-        Column(
+-            modifier = Modifier
+-                .fillMaxSize()
+-                .padding(18.dp),
+-            verticalArrangement = Arrangement.spacedBy(14.dp)
+-        ) {
+-            StatusBar()
+-
+-            Row(
+-                modifier = Modifier
+-                    .fillMaxWidth()
+-                    .weight(1f),
+-                horizontalArrangement = Arrangement.spacedBy(14.dp)
+-            ) {
+-                MapCard(
+-                    modifier = Modifier
+-                        .weight(1.65f)
+-                        .fillMaxHeight()
+-                )
+-
+-                Column(
+-                    modifier = Modifier
+-                        .weight(1f)
+-                        .fillMaxHeight(),
+-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+-                ) {
+-                    ClimateCard(
+-                        modifier = Modifier
+-                            .fillMaxWidth()
+-                            .weight(1f)
+-                    )
+-
+-                    MediaCard(
+-                        modifier = Modifier
+-                            .fillMaxWidth()
+-                            .weight(1f)
+-                    )
+-                }
+-            }
+-
+-            AppButtonGrid()
+-        }
+-    }
+-}
+-
+-@Composable
+-private fun StatusBar() {
+-    var currentTime by remember { mutableStateOf(formattedTime()) }
+-
+-    LaunchedEffect(Unit) {
+-        while (true) {
+-            currentTime = formattedTime()
+-            delay(30_000)
+-        }
+-    }
+-
+-    Row(
+-        modifier = Modifier
+-            .fillMaxWidth()
+-            .height(58.dp)
+-            .padding(horizontal = 8.dp),
+-        verticalAlignment = Alignment.CenterVertically
+-    ) {
+-        Text(
+-            text = currentTime,
+-            color = PrimaryText,
+-            fontSize = 27.sp,
+-            fontWeight = FontWeight.SemiBold
+-        )
+-
+-        Spacer(modifier = Modifier.weight(1f))
+-
+-        Text(
+-            text = "68°F",
+-            color = PrimaryText,
+-            fontSize = 24.sp,
+-            fontWeight = FontWeight.Medium
+-        )
+-
+-        Text(
+-            text = "   Wi-Fi   GPS",
+-            color = SecondaryText,
+-            fontSize = 19.sp
+-        )
+-    }
+-}
+-
+-@Composable
+-private fun MapCard(modifier: Modifier = Modifier) {
+-    DashboardCard(modifier = modifier) {
+-        Box(
+-            modifier = Modifier.fillMaxSize(),
+-            contentAlignment = Alignment.Center
+-        ) {
+-            Column(
+-                horizontalAlignment = Alignment.CenterHorizontally
+-            ) {
+-                Text(
+-                    text = "NAVIGATION",
+-                    color = SecondaryText,
+-                    fontSize = 18.sp,
+-                    fontWeight = FontWeight.Bold
+-                )
+-
+-                Spacer(modifier = Modifier.height(14.dp))
+-
+-                Text(
+-                    text = "Map area",
+-                    color = PrimaryText,
+-                    fontSize = 38.sp,
+-                    fontWeight = FontWeight.Medium
+-                )
+-
+-                Spacer(modifier = Modifier.height(10.dp))
+-
+-                Text(
+-                    text = "Google Maps or preferred navigation",
+-                    color = SecondaryText,
+-                    fontSize = 18.sp
+-                )
+-            }
+-        }
+-    }
+-}
+-
+-@Composable
+-private fun ClimateCard(modifier: Modifier = Modifier) {
+-    DashboardCard(modifier = modifier) {
+-        Column(
+-            modifier = Modifier
+-                .fillMaxSize()
+-                .padding(22.dp),
+-            verticalArrangement = Arrangement.SpaceBetween
+-        ) {
+-            Text(
+-                text = "CLIMATE",
+-                color = SecondaryText,
+-                fontSize = 17.sp,
+-                fontWeight = FontWeight.Bold
+-            )
+-
+-            Row(
+-                verticalAlignment = Alignment.Bottom
+-            ) {
+-                Text(
+-                    text = "72°",
+-                    color = PrimaryText,
+-                    fontSize = 58.sp,
+-                    fontWeight = FontWeight.Light
+-                )
+-
+-                Column(
+-                    modifier = Modifier.padding(start = 20.dp, bottom = 7.dp)
+-                ) {
+-                    Text(
+-                        text = "AUTO",
+-                        color = Accent,
+-                        fontSize = 21.sp,
+-                        fontWeight = FontWeight.Bold
+-                    )
+-
+-                    Text(
+-                        text = "Fan 3",
+-                        color = SecondaryText,
+-                        fontSize = 19.sp
+-                    )
+-                }
+-            }
+-
+-            Text(
+-                text = "A/C on  •  Face + feet",
+-                color = SecondaryText,
+-                fontSize = 17.sp
+-            )
+-        }
+-    }
+-}
+-
+-@Composable
+-private fun MediaCard(modifier: Modifier = Modifier) {
+-    DashboardCard(modifier = modifier) {
+-        Column(
+-            modifier = Modifier
+-                .fillMaxSize()
+-                .padding(22.dp),
+-            verticalArrangement = Arrangement.Center
+-        ) {
+-            Text(
+-                text = "NOW PLAYING",
+-                color = SecondaryText,
+-                fontSize = 17.sp,
+-                fontWeight = FontWeight.Bold
+-            )
+-
+-            Spacer(modifier = Modifier.height(20.dp))
+-
+-            Text(
+-                text = "No media playing",
+-                color = PrimaryText,
+-                fontSize = 27.sp,
+-                fontWeight = FontWeight.Medium
+-            )
+-
+-            Spacer(modifier = Modifier.height(8.dp))
+-
+-            Text(
+-                text = "Open a music app to begin",
+-                color = SecondaryText,
+-                fontSize = 18.sp
+-            )
+-        }
+-    }
+-}
+-
+-@Composable
+-private fun AppButtonGrid() {
+-    val context = LocalContext.current
+-    Column(
+-        modifier = Modifier.fillMaxWidth(),
+-        verticalArrangement = Arrangement.spacedBy(10.dp)
+-    ) {
+-        Row(
+-            modifier = Modifier.fillMaxWidth(),
+-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+-        ) {
+-            LauncherButton("Navigation", Modifier.weight(1f)) {
+-                AppLauncher.openNavigation(context)
+-            }
+-            LauncherButton("Music", Modifier.weight(1f)) {
+-                AppLauncher.openMusic(context)
+-            }
+-            LauncherButton("Climate", Modifier.weight(1f)) {
+-                AppLauncher.openClimate(context)
+-            }
+-        }
+-
+-        Row(
+-            modifier = Modifier.fillMaxWidth(),
+-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+-        ) {
+-            LauncherButton("Phone", Modifier.weight(1f)) {
+-                AppLauncher.writeDiagnostics(context)
+-            }
+-            LauncherButton("Home Assistant", Modifier.weight(1f)) {
+-                AppLauncher.openHomeAssistant(context)
+-            }
+-            LauncherButton("Apps", Modifier.weight(1f)) {
+-                AppLauncher.openApps(context)
+-            }
+-        }
+-    }
+-
+-}
+-@Composable
+-private fun LauncherButton(
+-    label: String,
+-    modifier: Modifier = Modifier,
+-    onClick: () -> Unit
+-) {
+-    Button(
+-        onClick = onClick,
+-        modifier = modifier.height(74.dp),
+-        shape = RoundedCornerShape(12.dp),
+-        colors = ButtonDefaults.buttonColors(
+-            containerColor = ButtonBackground,
+-            contentColor = PrimaryText
+-        )
+-    ) {
+-        Text(
+-            text = label,
+-            fontSize = 20.sp,
+-            fontWeight = FontWeight.SemiBold
+-        )
+-    }
+-}
+-
+-@Composable
+-private fun DashboardCard(
+-    modifier: Modifier = Modifier,
+-    content: @Composable () -> Unit
+-) {
+-    Box(
+-        modifier = modifier
+-            .background(
+-                color = CardBackground,
+-                shape = RoundedCornerShape(14.dp)
+-            )
+-            .border(
+-                width = 1.dp,
+-                color = BorderColor,
+-                shape = RoundedCornerShape(14.dp)
+-            )
+-    ) {
+-        content()
+-    }
+-}
+-
+-private fun formattedTime(): String {
+-    return LocalTime.now().format(
+-        DateTimeFormatter.ofPattern("h:mm a")
+-    )
++package com.ttravlos.lc100launcher
++
++import android.os.Bundle
++import androidx.activity.ComponentActivity
++import androidx.activity.compose.setContent
++import androidx.compose.foundation.background
++import androidx.compose.foundation.border
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.Spacer
++import androidx.compose.foundation.layout.fillMaxHeight
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.height
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.shape.RoundedCornerShape
++import androidx.compose.material3.Button
++import androidx.compose.material3.ButtonDefaults
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Surface
++import androidx.compose.material3.Text
++import androidx.compose.material3.darkColorScheme
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.setValue
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.text.font.FontWeight
++import androidx.compose.ui.unit.dp
++import androidx.compose.ui.unit.sp
++import kotlinx.coroutines.delay
++import java.time.LocalTime
++import java.time.format.DateTimeFormatter
++
++class MainActivity : ComponentActivity() {
++
++    override fun onCreate(savedInstanceState: Bundle?) {
++        super.onCreate(savedInstanceState)
++
++        setContent {
++            MaterialTheme(
++                colorScheme = darkColorScheme()
++            ) {
++                LauncherScreen()
++            }
++        }
++    }
++}
++
++private val ScreenBackground = Color(0xFF080B0F)
++private val CardBackground = Color(0xFF151A20)
++private val ButtonBackground = Color(0xFF202832)
++private val BorderColor = Color(0xFF37414D)
++private val PrimaryText = Color(0xFFF2F5F7)
++private val SecondaryText = Color(0xFF9DA8B3)
++private val Accent = Color(0xFF55B7FF)
++
++@Composable
++private fun LauncherScreen() {
++    Surface(
++        modifier = Modifier.fillMaxSize(),
++        color = ScreenBackground
++    ) {
++        Column(
++            modifier = Modifier
++                .fillMaxSize()
++                .padding(18.dp),
++            verticalArrangement = Arrangement.spacedBy(14.dp)
++        ) {
++            StatusBar()
++
++            Row(
++                modifier = Modifier
++                    .fillMaxWidth()
++                    .weight(1f),
++                horizontalArrangement = Arrangement.spacedBy(14.dp)
++            ) {
++                MapCard(
++                    modifier = Modifier
++                        .weight(1.65f)
++                        .fillMaxHeight()
++                )
++
++                Column(
++                    modifier = Modifier
++                        .weight(1f)
++                        .fillMaxHeight(),
++                    verticalArrangement = Arrangement.spacedBy(14.dp)
++                ) {
++                    ClimateCard(
++                        modifier = Modifier
++                            .fillMaxWidth()
++                            .weight(1f)
++                    )
++
++                    MediaCard(
++                        modifier = Modifier
++                            .fillMaxWidth()
++                            .weight(1f)
++                    )
++                }
++            }
++
++            AppButtonGrid()
++        }
++    }
++}
++
++@Composable
++private fun StatusBar() {
++    var currentTime by remember { mutableStateOf(formattedTime()) }
++
++    LaunchedEffect(Unit) {
++        while (true) {
++            currentTime = formattedTime()
++            delay(30_000)
++        }
++    }
++
++    Row(
++        modifier = Modifier
++            .fillMaxWidth()
++            .height(58.dp)
++            .padding(horizontal = 8.dp),
++        verticalAlignment = Alignment.CenterVertically
++    ) {
++        Text(
++            text = currentTime,
++            color = PrimaryText,
++            fontSize = 27.sp,
++            fontWeight = FontWeight.SemiBold
++        )
++
++        Spacer(modifier = Modifier.weight(1f))
++
++        Text(
++            text = "68°F",
++            color = PrimaryText,
++            fontSize = 24.sp,
++            fontWeight = FontWeight.Medium
++        )
++
++        Text(
++            text = "   Wi-Fi   GPS",
++            color = SecondaryText,
++            fontSize = 19.sp
++        )
++    }
++}
++
++@Composable
++private fun MapCard(modifier: Modifier = Modifier) {
++    DashboardCard(modifier = modifier) {
++        Box(
++            modifier = Modifier.fillMaxSize(),
++            contentAlignment = Alignment.Center
++        ) {
++            Column(
++                horizontalAlignment = Alignment.CenterHorizontally
++            ) {
++                Text(
++                    text = "NAVIGATION",
++                    color = SecondaryText,
++                    fontSize = 18.sp,
++                    fontWeight = FontWeight.Bold
++                )
++
++                Spacer(modifier = Modifier.height(14.dp))
++
++                Text(
++                    text = "Map area",
++                    color = PrimaryText,
++                    fontSize = 38.sp,
++                    fontWeight = FontWeight.Medium
++                )
++
++                Spacer(modifier = Modifier.height(10.dp))
++
++                Text(
++                    text = "Google Maps or preferred navigation",
++                    color = SecondaryText,
++                    fontSize = 18.sp
++                )
++            }
++        }
++    }
++}
++
++@Composable
++private fun ClimateCard(modifier: Modifier = Modifier) {
++    DashboardCard(modifier = modifier) {
++        Column(
++            modifier = Modifier
++                .fillMaxSize()
++                .padding(22.dp),
++            verticalArrangement = Arrangement.SpaceBetween
++        ) {
++            Text(
++                text = "CLIMATE",
++                color = SecondaryText,
++                fontSize = 17.sp,
++                fontWeight = FontWeight.Bold
++            )
++
++            Row(
++                verticalAlignment = Alignment.Bottom
++            ) {
++                Text(
++                    text = "72°",
++                    color = PrimaryText,
++                    fontSize = 58.sp,
++                    fontWeight = FontWeight.Light
++                )
++
++                Column(
++                    modifier = Modifier.padding(start = 20.dp, bottom = 7.dp)
++                ) {
++                    Text(
++                        text = "AUTO",
++                        color = Accent,
++                        fontSize = 21.sp,
++                        fontWeight = FontWeight.Bold
++                    )
++
++                    Text(
++                        text = "Fan 3",
++                        color = SecondaryText,
++                        fontSize = 19.sp
++                    )
++                }
++            }
++
++            Text(
++                text = "A/C on  •  Face + feet",
++                color = SecondaryText,
++                fontSize = 17.sp
++            )
++        }
++    }
++}
++
++@Composable
++private fun MediaCard(modifier: Modifier = Modifier) {
++    DashboardCard(modifier = modifier) {
++        Column(
++            modifier = Modifier
++                .fillMaxSize()
++                .padding(22.dp),
++            verticalArrangement = Arrangement.Center
++        ) {
++            Text(
++                text = "NOW PLAYING",
++                color = SecondaryText,
++                fontSize = 17.sp,
++                fontWeight = FontWeight.Bold
++            )
++
++            Spacer(modifier = Modifier.height(20.dp))
++
++            Text(
++                text = "No media playing",
++                color = PrimaryText,
++                fontSize = 27.sp,
++                fontWeight = FontWeight.Medium
++            )
++
++            Spacer(modifier = Modifier.height(8.dp))
++
++            Text(
++                text = "Open a music app to begin",
++                color = SecondaryText,
++                fontSize = 18.sp
++            )
++        }
++    }
++}
++
++@Composable
++private fun AppButtonGrid() {
++    val context = LocalContext.current
++    Column(
++        modifier = Modifier.fillMaxWidth(),
++        verticalArrangement = Arrangement.spacedBy(10.dp)
++    ) {
++        Row(
++            modifier = Modifier.fillMaxWidth(),
++            horizontalArrangement = Arrangement.spacedBy(10.dp)
++        ) {
++            LauncherButton("Navigation", Modifier.weight(1f)) {
++                AppLauncher.openNavigation(context)
++            }
++            LauncherButton("Music", Modifier.weight(1f)) {
++                AppLauncher.openMusic(context)
++            }
++            LauncherButton("Climate", Modifier.weight(1f)) {
++                AppLauncher.openClimate(context)
++            }
++        }
++
++        Row(
++            modifier = Modifier.fillMaxWidth(),
++            horizontalArrangement = Arrangement.spacedBy(10.dp)
++        ) {
++            LauncherButton("Phone", Modifier.weight(1f)) {
++                AppLauncher.openPhone(context)
++            }
++            LauncherButton("Home Assistant", Modifier.weight(1f)) {
++                AppLauncher.openHomeAssistant(context)
++            }
++            LauncherButton("Apps", Modifier.weight(1f)) {
++                AppLauncher.openApps(context)
++            }
++        }
++    }
++
++}
++@Composable
++private fun LauncherButton(
++    label: String,
++    modifier: Modifier = Modifier,
++    onClick: () -> Unit
++) {
++    Button(
++        onClick = onClick,
++        modifier = modifier.height(74.dp),
++        shape = RoundedCornerShape(12.dp),
++        colors = ButtonDefaults.buttonColors(
++            containerColor = ButtonBackground,
++            contentColor = PrimaryText
++        )
++    ) {
++        Text(
++            text = label,
++            fontSize = 20.sp,
++            fontWeight = FontWeight.SemiBold
++        )
++    }
++}
++
++@Composable
++private fun DashboardCard(
++    modifier: Modifier = Modifier,
++    content: @Composable () -> Unit
++) {
++    Box(
++        modifier = modifier
++            .background(
++                color = CardBackground,
++                shape = RoundedCornerShape(14.dp)
++            )
++            .border(
++                width = 1.dp,
++                color = BorderColor,
++                shape = RoundedCornerShape(14.dp)
++            )
++    ) {
++        content()
++    }
++}
++
++private fun formattedTime(): String {
++    return LocalTime.now().format(
++        DateTimeFormatter.ofPattern("h:mm a")
++    )
+ }
+\ No newline at end of file

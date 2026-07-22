@@ -1,0 +1,146 @@
+diff --git a/launcher/src/main/java/com/ttravlos/lc100launcher/AppLauncher.kt b/launcher/src/main/java/com/ttravlos/lc100launcher/AppLauncher.kt
+index d5dff0c..7c6c77a 100644
+--- a/launcher/src/main/java/com/ttravlos/lc100launcher/AppLauncher.kt
++++ b/launcher/src/main/java/com/ttravlos/lc100launcher/AppLauncher.kt
+@@ -70,20 +70,25 @@ object AppLauncher {
+         )
+     }
+ 
+-    fun openPhone(context: Context) {
+-        if (launchAppByLabel(context, "Bluetooth")) {
+-            return
+-        }
+-
+-        val intent = Intent(Intent.ACTION_DIAL).apply {
+-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
++    fun getLaunchableApps(context: Context): List<String> {
++        val packageManager = context.packageManager
++        val launcherIntent = Intent(Intent.ACTION_MAIN).apply {
++            addCategory(Intent.CATEGORY_LAUNCHER)
+         }
+ 
+-        if (intent.resolveActivity(context.packageManager) != null) {
+-            context.startActivity(intent)
+-        } else {
+-            showMessage(context, "Bluetooth phone app is unavailable")
+-        }
++        return packageManager.queryIntentActivities(
++            launcherIntent,
++            PackageManager.MATCH_DEFAULT_ONLY
++        )
++            .map { resolveInfo ->
++                val label = resolveInfo.loadLabel(packageManager)
++                    ?.toString()
++                    ?.ifBlank { "(no label)" }
++                    ?: "(no label)"
++                val activityInfo = resolveInfo.activityInfo
++                "$label\n${activityInfo.packageName}\n${activityInfo.name}"
++            }
++            .sortedBy { it.lowercase() }
+     }
+ 
+     fun openHomeAssistant(context: Context) {
+diff --git a/launcher/src/main/java/com/ttravlos/lc100launcher/MainActivity.kt b/launcher/src/main/java/com/ttravlos/lc100launcher/MainActivity.kt
+index 0725774..f632240 100644
+--- a/launcher/src/main/java/com/ttravlos/lc100launcher/MainActivity.kt
++++ b/launcher/src/main/java/com/ttravlos/lc100launcher/MainActivity.kt
+@@ -13,11 +13,16 @@ import androidx.compose.foundation.layout.Spacer
+ import androidx.compose.foundation.layout.fillMaxHeight
+ import androidx.compose.foundation.layout.fillMaxSize
+ import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.widthIn
+ import androidx.compose.foundation.layout.height
+ import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.rememberScrollState
++import androidx.compose.foundation.verticalScroll
+ import androidx.compose.foundation.shape.RoundedCornerShape
+ import androidx.compose.material3.Button
++import androidx.compose.material3.AlertDialog
+ import androidx.compose.material3.ButtonDefaults
++import androidx.compose.material3.TextButton
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.Surface
+ import androidx.compose.material3.Text
+@@ -285,6 +290,8 @@ private fun MediaCard(modifier: Modifier = Modifier) {
+ @Composable
+ private fun AppButtonGrid() {
+     val context = LocalContext.current
++    var showAppDiagnostics by remember { mutableStateOf(false) }
++    var launchableApps by remember { mutableStateOf(emptyList<String>()) }
+ 
+     Column(
+         modifier = Modifier.fillMaxWidth(),
+@@ -310,7 +317,8 @@ private fun AppButtonGrid() {
+             horizontalArrangement = Arrangement.spacedBy(10.dp)
+         ) {
+             LauncherButton("Phone", Modifier.weight(1f)) {
+-                AppLauncher.openPhone(context)
++                launchableApps = AppLauncher.getLaunchableApps(context)
++                showAppDiagnostics = true
+             }
+             LauncherButton("Home Assistant", Modifier.weight(1f)) {
+                 AppLauncher.openHomeAssistant(context)
+@@ -320,6 +328,63 @@ private fun AppButtonGrid() {
+             }
+         }
+     }
++
++    if (showAppDiagnostics) {
++        AppDiagnosticsDialog(
++            apps = launchableApps,
++            onDismiss = { showAppDiagnostics = false }
++        )
++    }
++}
++
++@Composable
++private fun AppDiagnosticsDialog(
++    apps: List<String>,
++    onDismiss: () -> Unit
++) {
++    AlertDialog(
++        onDismissRequest = onDismiss,
++        title = {
++            Text(
++                text = "Launchable apps (${apps.size})",
++                color = PrimaryText
++            )
++        },
++        text = {
++            Column(
++                modifier = Modifier
++                    .widthIn(max = 720.dp)
++                    .height(430.dp)
++                    .verticalScroll(rememberScrollState())
++            ) {
++                if (apps.isEmpty()) {
++                    Text(
++                        text = "No launchable apps were returned.",
++                        color = SecondaryText,
++                        fontSize = 18.sp
++                    )
++                } else {
++                    apps.forEachIndexed { index, app ->
++                        Text(
++                            text = app,
++                            color = PrimaryText,
++                            fontSize = 16.sp
++                        )
++
++                        if (index < apps.lastIndex) {
++                            Spacer(modifier = Modifier.height(14.dp))
++                        }
++                    }
++                }
++            }
++        },
++        confirmButton = {
++            TextButton(onClick = onDismiss) {
++                Text("Close")
++            }
++        },
++        containerColor = CardBackground
++    )
+ }
+ 
+ @Composable

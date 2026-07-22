@@ -1,0 +1,18 @@
+diff --git a/launcher/src/main/java/com/ttravlos/lc100launcher/AppLauncher.kt b/launcher/src/main/java/com/ttravlos/lc100launcher/AppLauncher.kt
+index 1d01bfd..d5dff0c 100644
+--- a/launcher/src/main/java/com/ttravlos/lc100launcher/AppLauncher.kt
++++ b/launcher/src/main/java/com/ttravlos/lc100launcher/AppLauncher.kt
+@@ -65,11 +65,8 @@ object AppLauncher {
+     fun openClimate(context: Context) {
+         launchPackage(
+             context,
+-            listOf(
+-                "com.ttravlos.climate100.dev",
+-                "com.ttravlos.climate100"
+-            ),
+-            "Climate100"
++            listOf("com.ttravlos.lc100climate.dev"),
++            "Climate100 Dev"
+         )
+     }
+ 

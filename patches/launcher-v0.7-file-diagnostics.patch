@@ -1,0 +1,373 @@
+diff --git a/launcher/build.gradle b/launcher/build.gradle
+index 6aac316..5d14298 100644
+--- a/launcher/build.gradle
++++ b/launcher/build.gradle
+@@ -11,8 +11,8 @@ android {
+         applicationId "com.ttravlos.lc100launcher.dev"
+         minSdk 29
+         targetSdk 34
+-        versionCode 1
+-        versionName "0.1-dev"
++        versionCode 7
++        versionName "0.7-dev"
+ 
+         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+     }
+diff --git a/launcher/src/main/AndroidManifest.xml b/launcher/src/main/AndroidManifest.xml
+index de79a4d..61fb2ac 100644
+--- a/launcher/src/main/AndroidManifest.xml
++++ b/launcher/src/main/AndroidManifest.xml
+@@ -1,6 +1,8 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+ 
++    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
++
+     <queries>
+         <package android:name="com.google.android.apps.maps" />
+         <package android:name="com.waze" />
+diff --git a/launcher/src/main/java/com/ttravlos/lc100launcher/AppLauncher.kt b/launcher/src/main/java/com/ttravlos/lc100launcher/AppLauncher.kt
+index 59d278d..5e29bc4 100644
+--- a/launcher/src/main/java/com/ttravlos/lc100launcher/AppLauncher.kt
++++ b/launcher/src/main/java/com/ttravlos/lc100launcher/AppLauncher.kt
+@@ -70,25 +70,8 @@ object AppLauncher {
+         )
+     }
+ 
+-    fun getLaunchableApps(context: Context): List<String> {
+-        val packageManager = context.packageManager
+-        val launcherIntent = Intent(Intent.ACTION_MAIN).apply {
+-            addCategory(Intent.CATEGORY_LAUNCHER)
+-        }
+-
+-        return packageManager.queryIntentActivities(
+-            launcherIntent,
+-            PackageManager.MATCH_DEFAULT_ONLY
+-        )
+-            .map { resolveInfo ->
+-                val label = resolveInfo.loadLabel(packageManager)
+-                    ?.toString()
+-                    ?.ifBlank { "(no label)" }
+-                    ?: "(no label)"
+-                val activityInfo = resolveInfo.activityInfo
+-                "$label\n${activityInfo.packageName}\n${activityInfo.name}"
+-            }
+-            .sortedBy { it.lowercase() }
++    fun writeDiagnostics(context: Context) {
++        DiagnosticFileWriter.write(context)
+     }
+ 
+     fun openHomeAssistant(context: Context) {
+diff --git a/launcher/src/main/java/com/ttravlos/lc100launcher/DiagnosticFileWriter.kt b/launcher/src/main/java/com/ttravlos/lc100launcher/DiagnosticFileWriter.kt
+new file mode 100644
+index 0000000..7a15b2a
+--- /dev/null
++++ b/launcher/src/main/java/com/ttravlos/lc100launcher/DiagnosticFileWriter.kt
+@@ -0,0 +1,201 @@
++package com.ttravlos.lc100launcher
++
++import android.content.ContentValues
++import android.content.Context
++import android.content.Intent
++import android.content.pm.ApplicationInfo
++import android.content.pm.PackageManager
++import android.os.Build
++import android.os.Environment
++import android.os.Handler
++import android.os.Looper
++import android.provider.MediaStore
++import android.widget.Toast
++import java.io.OutputStreamWriter
++import java.time.LocalDateTime
++import java.time.format.DateTimeFormatter
++
++object DiagnosticFileWriter {
++
++    private const val FILE_NAME = "LC100Launcher_Diagnostics.txt"
++    private val interestingTerms = listOf(
++        "bt", "blu", "phone", "dial", "call", "teyes", "syu"
++    )
++
++    fun write(context: Context) {
++        val appContext = context.applicationContext
++
++        Toast.makeText(
++            appContext,
++            "Writing launcher diagnostics…",
++            Toast.LENGTH_SHORT
++        ).show()
++
++        Thread {
++            val result = runCatching {
++                val report = buildReport(appContext)
++                writeToDownloads(appContext, report)
++            }
++
++            Handler(Looper.getMainLooper()).post {
++                result.onSuccess {
++                    Toast.makeText(
++                        appContext,
++                        "Saved Download/$FILE_NAME",
++                        Toast.LENGTH_LONG
++                    ).show()
++                }.onFailure { error ->
++                    Toast.makeText(
++                        appContext,
++                        "Diagnostic write failed: ${error.message ?: error.javaClass.simpleName}",
++                        Toast.LENGTH_LONG
++                    ).show()
++                }
++            }
++        }.start()
++    }
++
++    private fun buildReport(context: Context): String {
++        val packageManager = context.packageManager
++        val launcherIntent = Intent(Intent.ACTION_MAIN).apply {
++            addCategory(Intent.CATEGORY_LAUNCHER)
++        }
++
++        val launchableActivities = packageManager.queryIntentActivities(
++            launcherIntent,
++            PackageManager.MATCH_DEFAULT_ONLY
++        ).sortedBy {
++            it.loadLabel(packageManager)?.toString()?.lowercase().orEmpty()
++        }
++
++        val installedPackages = packageManager.getInstalledPackages(
++            PackageManager.GET_ACTIVITIES
++        ).sortedBy { it.packageName.lowercase() }
++
++        return buildString {
++            appendLine("LC100 Launcher Diagnostics")
++            appendLine("Generated: ${LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)}")
++            appendLine()
++
++            appendLine("===== DEVICE =====")
++            appendLine("Manufacturer: ${Build.MANUFACTURER}")
++            appendLine("Brand: ${Build.BRAND}")
++            appendLine("Model: ${Build.MODEL}")
++            appendLine("Device: ${Build.DEVICE}")
++            appendLine("Product: ${Build.PRODUCT}")
++            appendLine("Android release: ${Build.VERSION.RELEASE}")
++            appendLine("SDK: ${Build.VERSION.SDK_INT}")
++            appendLine("Launcher package: ${context.packageName}")
++            appendLine()
++
++            appendLine("===== LAUNCHABLE ACTIVITIES (${launchableActivities.size}) =====")
++            launchableActivities.forEach { resolveInfo ->
++                val info = resolveInfo.activityInfo
++                val label = resolveInfo.loadLabel(packageManager)
++                    ?.toString()
++                    ?.ifBlank { "(no label)" }
++                    ?: "(no label)"
++
++                appendLine("Label: $label")
++                appendLine("Package: ${info.packageName}")
++                appendLine("Activity: ${info.name}")
++                appendLine("Exported: ${info.exported}")
++                appendLine("Enabled: ${info.enabled}")
++                appendLine()
++            }
++
++            val interesting = installedPackages.filter { packageInfo ->
++                val label = packageInfo.applicationInfo
++                    ?.loadLabel(packageManager)
++                    ?.toString()
++                    .orEmpty()
++                val searchable = "${packageInfo.packageName} $label".lowercase()
++                interestingTerms.any(searchable::contains)
++            }
++
++            appendLine("===== INTERESTING PACKAGES (${interesting.size}) =====")
++            appendLine("Filter terms: ${interestingTerms.joinToString(", ")}")
++            appendLine()
++            interesting.forEach { packageInfo ->
++                appendPackage(packageManager, packageInfo)
++            }
++
++            appendLine("===== ALL INSTALLED PACKAGES (${installedPackages.size}) =====")
++            installedPackages.forEach { packageInfo ->
++                appendPackage(packageManager, packageInfo)
++            }
++        }
++    }
++
++    private fun StringBuilder.appendPackage(
++        packageManager: PackageManager,
++        packageInfo: android.content.pm.PackageInfo
++    ) {
++        val applicationInfo = packageInfo.applicationInfo
++        val label = applicationInfo
++            ?.loadLabel(packageManager)
++            ?.toString()
++            ?.ifBlank { "(no label)" }
++            ?: "(no label)"
++        val systemApp = applicationInfo?.flags
++            ?.and(ApplicationInfo.FLAG_SYSTEM) != 0
++        val launchIntent = packageManager.getLaunchIntentForPackage(packageInfo.packageName)
++
++        appendLine("Label: $label")
++        appendLine("Package: ${packageInfo.packageName}")
++        appendLine("Version: ${packageInfo.versionName ?: "(unknown)"}")
++        appendLine("System app: $systemApp")
++        appendLine("Launch activity: ${launchIntent?.component?.className ?: "(none)"}")
++
++        val activities = packageInfo.activities
++        if (activities.isNullOrEmpty()) {
++            appendLine("Activities: (none returned)")
++        } else {
++            appendLine("Activities (${activities.size}):")
++            activities.sortedBy { it.name.lowercase() }.forEach { activity ->
++                appendLine(
++                    "  ${activity.name} | exported=${activity.exported} | enabled=${activity.enabled}"
++                )
++            }
++        }
++        appendLine()
++    }
++
++    private fun writeToDownloads(context: Context, report: String) {
++        val resolver = context.contentResolver
++        val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
++        val relativePath = Environment.DIRECTORY_DOWNLOADS + "/"
++
++        val existingUri = resolver.query(
++            collection,
++            arrayOf(MediaStore.Downloads._ID),
++            "${MediaStore.Downloads.DISPLAY_NAME}=? AND ${MediaStore.Downloads.RELATIVE_PATH}=?",
++            arrayOf(FILE_NAME, relativePath),
++            null
++        )?.use { cursor ->
++            if (cursor.moveToFirst()) {
++                val id = cursor.getLong(
++                    cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID)
++                )
++                android.content.ContentUris.withAppendedId(collection, id)
++            } else {
++                null
++            }
++        }
++
++        val uri = existingUri ?: resolver.insert(
++            collection,
++            ContentValues().apply {
++                put(MediaStore.Downloads.DISPLAY_NAME, FILE_NAME)
++                put(MediaStore.Downloads.MIME_TYPE, "text/plain")
++                put(MediaStore.Downloads.RELATIVE_PATH, relativePath)
++            }
++        ) ?: error("MediaStore did not create the diagnostics file")
++
++        resolver.openOutputStream(uri, "wt")?.use { output ->
++            OutputStreamWriter(output, Charsets.UTF_8).use { writer ->
++                writer.write(report)
++            }
++        } ?: error("Unable to open the diagnostics file for writing")
++    }
++}
+diff --git a/launcher/src/main/java/com/ttravlos/lc100launcher/MainActivity.kt b/launcher/src/main/java/com/ttravlos/lc100launcher/MainActivity.kt
+index 0e1d319..6d55cfa 100644
+--- a/launcher/src/main/java/com/ttravlos/lc100launcher/MainActivity.kt
++++ b/launcher/src/main/java/com/ttravlos/lc100launcher/MainActivity.kt
+@@ -13,16 +13,11 @@ import androidx.compose.foundation.layout.Spacer
+ import androidx.compose.foundation.layout.fillMaxHeight
+ import androidx.compose.foundation.layout.fillMaxSize
+ import androidx.compose.foundation.layout.fillMaxWidth
+-import androidx.compose.foundation.layout.widthIn
+ import androidx.compose.foundation.layout.height
+ import androidx.compose.foundation.layout.padding
+-import androidx.compose.foundation.rememberScrollState
+-import androidx.compose.foundation.verticalScroll
+ import androidx.compose.foundation.shape.RoundedCornerShape
+ import androidx.compose.material3.Button
+-import androidx.compose.material3.AlertDialog
+ import androidx.compose.material3.ButtonDefaults
+-import androidx.compose.material3.TextButton
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.Surface
+ import androidx.compose.material3.Text
+@@ -290,9 +285,6 @@ private fun MediaCard(modifier: Modifier = Modifier) {
+ @Composable
+ private fun AppButtonGrid() {
+     val context = LocalContext.current
+-    var showAppDiagnostics by remember { mutableStateOf(false) }
+-    var launchableApps by remember { mutableStateOf(emptyList<String>()) }
+-
+     Column(
+         modifier = Modifier.fillMaxWidth(),
+         verticalArrangement = Arrangement.spacedBy(10.dp)
+@@ -317,8 +309,7 @@ private fun AppButtonGrid() {
+             horizontalArrangement = Arrangement.spacedBy(10.dp)
+         ) {
+             LauncherButton("Phone", Modifier.weight(1f)) {
+-                launchableApps = AppLauncher.getLaunchableApps(context)
+-                showAppDiagnostics = true
++                AppLauncher.writeDiagnostics(context)
+             }
+             LauncherButton("Home Assistant", Modifier.weight(1f)) {
+                 AppLauncher.openHomeAssistant(context)
+@@ -329,64 +320,7 @@ private fun AppButtonGrid() {
+         }
+     }
+ 
+-    if (showAppDiagnostics) {
+-        AppDiagnosticsDialog(
+-            apps = launchableApps,
+-            onDismiss = { showAppDiagnostics = false }
+-        )
+-    }
+-}
+-
+-@Composable
+-private fun AppDiagnosticsDialog(
+-    apps: List<String>,
+-    onDismiss: () -> Unit
+-) {
+-    AlertDialog(
+-        onDismissRequest = onDismiss,
+-        title = {
+-            Text(
+-                text = "Launchable apps (${apps.size})",
+-                color = PrimaryText
+-            )
+-        },
+-        text = {
+-            Column(
+-                modifier = Modifier
+-                    .widthIn(max = 720.dp)
+-                    .height(430.dp)
+-                    .verticalScroll(rememberScrollState())
+-            ) {
+-                if (apps.isEmpty()) {
+-                    Text(
+-                        text = "No launchable apps were returned.",
+-                        color = SecondaryText,
+-                        fontSize = 18.sp
+-                    )
+-                } else {
+-                    apps.forEachIndexed { index, app ->
+-                        Text(
+-                            text = app,
+-                            color = PrimaryText,
+-                            fontSize = 16.sp
+-                        )
+-
+-                        if (index < apps.lastIndex) {
+-                            Spacer(modifier = Modifier.height(14.dp))
+-                        }
+-                    }
+-                }
+-            }
+-        },
+-        confirmButton = {
+-            TextButton(onClick = onDismiss) {
+-                Text("Close")
+-            }
+-        },
+-        containerColor = CardBackground
+-    )
+ }
+-
+ @Composable
+ private fun LauncherButton(
+     label: String,

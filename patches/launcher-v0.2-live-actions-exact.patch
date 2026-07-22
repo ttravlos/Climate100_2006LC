@@ -1,0 +1,101 @@
+diff --git a/launcher/src/main/AndroidManifest.xml b/launcher/src/main/AndroidManifest.xml
+index a095c65..aa412b9 100644
+--- a/launcher/src/main/AndroidManifest.xml
++++ b/launcher/src/main/AndroidManifest.xml
+@@ -1,6 +1,22 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+ 
++    <queries>
++        <package android:name="com.google.android.apps.maps" />
++        <package android:name="com.waze" />
++        <package android:name="com.spotify.music" />
++        <package android:name="com.google.android.apps.youtube.music" />
++        <package android:name="com.ttravlos.climate100.dev" />
++        <package android:name="com.ttravlos.climate100" />
++        <package android:name="io.homeassistant.companion.android" />
++        <package android:name="io.homeassistant.companion.android.minimal" />
++
++        <intent>
++            <action android:name="android.intent.action.DIAL" />
++            <data android:scheme="tel" />
++        </intent>
++    </queries>
++
+     <application
+         android:allowBackup="true"
+         android:icon="@mipmap/ic_launcher"
+diff --git a/launcher/src/main/java/com/ttravlos/lc100launcher/MainActivity.kt b/launcher/src/main/java/com/ttravlos/lc100launcher/MainActivity.kt
+index 1f3fd87..0725774 100644
+--- a/launcher/src/main/java/com/ttravlos/lc100launcher/MainActivity.kt
++++ b/launcher/src/main/java/com/ttravlos/lc100launcher/MainActivity.kt
+@@ -31,6 +31,7 @@ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.text.font.FontWeight
+ import androidx.compose.ui.unit.dp
+ import androidx.compose.ui.unit.sp
+@@ -283,6 +284,8 @@ private fun MediaCard(modifier: Modifier = Modifier) {
+ 
+ @Composable
+ private fun AppButtonGrid() {
++    val context = LocalContext.current
++
+     Column(
+         modifier = Modifier.fillMaxWidth(),
+         verticalArrangement = Arrangement.spacedBy(10.dp)
+@@ -291,18 +294,30 @@ private fun AppButtonGrid() {
+             modifier = Modifier.fillMaxWidth(),
+             horizontalArrangement = Arrangement.spacedBy(10.dp)
+         ) {
+-            LauncherButton("Navigation", Modifier.weight(1f))
+-            LauncherButton("Music", Modifier.weight(1f))
+-            LauncherButton("Climate", Modifier.weight(1f))
++            LauncherButton("Navigation", Modifier.weight(1f)) {
++                AppLauncher.openNavigation(context)
++            }
++            LauncherButton("Music", Modifier.weight(1f)) {
++                AppLauncher.openMusic(context)
++            }
++            LauncherButton("Climate", Modifier.weight(1f)) {
++                AppLauncher.openClimate(context)
++            }
+         }
+ 
+         Row(
+             modifier = Modifier.fillMaxWidth(),
+             horizontalArrangement = Arrangement.spacedBy(10.dp)
+         ) {
+-            LauncherButton("Phone", Modifier.weight(1f))
+-            LauncherButton("Home Assistant", Modifier.weight(1f))
+-            LauncherButton("Apps", Modifier.weight(1f))
++            LauncherButton("Phone", Modifier.weight(1f)) {
++                AppLauncher.openPhone(context)
++            }
++            LauncherButton("Home Assistant", Modifier.weight(1f)) {
++                AppLauncher.openHomeAssistant(context)
++            }
++            LauncherButton("Apps", Modifier.weight(1f)) {
++                AppLauncher.openApps(context)
++            }
+         }
+     }
+ }
+@@ -310,12 +325,11 @@ private fun AppButtonGrid() {
+ @Composable
+ private fun LauncherButton(
+     label: String,
+-    modifier: Modifier = Modifier
++    modifier: Modifier = Modifier,
++    onClick: () -> Unit
+ ) {
+     Button(
+-        onClick = {
+-            // App-launch behavior will be added next.
+-        },
++        onClick = onClick,
+         modifier = modifier.height(74.dp),
+         shape = RoundedCornerShape(12.dp),
+         colors = ButtonDefaults.buttonColors(

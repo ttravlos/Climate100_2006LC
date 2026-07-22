@@ -1,0 +1,115 @@
+diff --git a/launcher/src/main/java/com/ttravlos/lc100launcher/AppLauncher.kt b/launcher/src/main/java/com/ttravlos/lc100launcher/AppLauncher.kt
+new file mode 100644
+index 0000000..3c8996f
+--- /dev/null
++++ b/launcher/src/main/java/com/ttravlos/lc100launcher/AppLauncher.kt
+@@ -0,0 +1,109 @@
++package com.ttravlos.lc100launcher
++
++import android.content.Context
++import android.content.Intent
++import android.net.Uri
++import android.provider.Settings
++import android.widget.Toast
++
++object AppLauncher {
++
++    fun launchPackage(
++        context: Context,
++        packageNames: List<String>,
++        displayName: String
++    ) {
++        for (packageName in packageNames) {
++            val intent = context.packageManager.getLaunchIntentForPackage(packageName)
++            if (intent != null) {
++                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
++                context.startActivity(intent)
++                return
++            }
++        }
++
++        showMessage(context, "$displayName is not installed")
++    }
++
++    fun openNavigation(context: Context) {
++        val intent = Intent(
++            Intent.ACTION_VIEW,
++            Uri.parse("google.navigation:q=")
++        ).apply {
++            setPackage("com.google.android.apps.maps")
++            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
++        }
++
++        if (intent.resolveActivity(context.packageManager) != null) {
++            context.startActivity(intent)
++        } else {
++            launchPackage(
++                context,
++                listOf("com.google.android.apps.maps", "com.waze"),
++                "Navigation app"
++            )
++        }
++    }
++
++    fun openMusic(context: Context) {
++        launchPackage(
++            context,
++            listOf(
++                "com.spotify.music",
++                "com.google.android.apps.youtube.music",
++                "com.google.android.music"
++            ),
++            "Music app"
++        )
++    }
++
++    fun openClimate(context: Context) {
++        launchPackage(
++            context,
++            listOf(
++                "com.ttravlos.climate100.dev",
++                "com.ttravlos.climate100"
++            ),
++            "Climate100"
++        )
++    }
++
++    fun openPhone(context: Context) {
++        val intent = Intent(Intent.ACTION_DIAL).apply {
++            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
++        }
++
++        if (intent.resolveActivity(context.packageManager) != null) {
++            context.startActivity(intent)
++        } else {
++            showMessage(context, "Phone app is unavailable")
++        }
++    }
++
++    fun openHomeAssistant(context: Context) {
++        launchPackage(
++            context,
++            listOf(
++                "io.homeassistant.companion.android",
++                "io.homeassistant.companion.android.minimal"
++            ),
++            "Home Assistant"
++        )
++    }
++
++    fun openApps(context: Context) {
++        val intent = Intent(Settings.ACTION_SETTINGS).apply {
++            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
++        }
++
++        if (intent.resolveActivity(context.packageManager) != null) {
++            context.startActivity(intent)
++        } else {
++            showMessage(context, "Settings is unavailable")
++        }
++    }
++
++    private fun showMessage(context: Context, message: String) {
++        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
++    }
++}

@@ -1,3 +1,9 @@
+README.md
+Project overview
+Features
+Screenshots
+Build instructions
+
 # Climate100
 Climate control replacement app for the Land Cruiser 100 and LX470 using the Teyes CC3 
 (and probably other FYT-based systems)
