@@ -11,8 +11,8 @@ android {
         applicationId "com.ttravlos.lc100launcher.dev"
         minSdk 29
         targetSdk 34
-        versionCode 1
-        versionName "0.1-dev"
+        versionCode 8
+        versionName "0.8-dev"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
