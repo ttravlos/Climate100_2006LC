@@ -1,0 +1,15 @@
+LC100 Launcher v0.11.1
+
+Changes:
+- Android system Back now closes the in-launcher app drawer.
+- Climate card padding and type sizes tightened to prevent bottom-line clipping.
+- Media card padding, spacing, and type sizes tightened to prevent status-line clipping.
+- Long secondary text remains single-line and ellipsized.
+
+Version:
+- versionCode 12
+- versionName 0.11.1-dev
+
+Files changed from v0.11:
+- launcher/build.gradle
+- launcher/src/main/java/com/ttravlos/lc100launcher/MainActivity.kt

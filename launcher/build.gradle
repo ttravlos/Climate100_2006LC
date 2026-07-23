@@ -11,8 +11,8 @@ android {
         applicationId "com.ttravlos.lc100launcher.dev"
         minSdk 29
         targetSdk 34
-        versionCode 10
-        versionName "0.10-dev"
+        versionCode 12
+        versionName "0.11.1-dev"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -49,6 +49,7 @@ dependencies {
     implementation 'androidx.activity:activity-compose:1.6.1'
     implementation 'com.google.android.material:material:1.8.0'
     implementation 'org.osmdroid:osmdroid-android:6.1.20'
+    implementation project(path: ':fytcanbusmonitor')
 
     implementation platform('androidx.compose:compose-bom:2022.12.00')
     implementation 'androidx.compose.ui:ui'

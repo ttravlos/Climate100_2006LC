@@ -1,0 +1,24 @@
+LC100 Launcher v0.11 development pass
+
+Changes:
+- Live climate card reads LC100/FYT CAN-bus state directly using the same update codes as Climate100.
+- Media card tracks the active Android media session, with smaller ellipsized title/artist text.
+- First run: tap the media card and enable "LC100 Launcher media access" in Notification access.
+- Apps button now opens an in-launcher grid of launchable applications and icons.
+- Launcher versionCode 11 / versionName 0.11-dev.
+
+Expected changed/new files:
+- launcher/build.gradle
+- launcher/src/main/AndroidManifest.xml
+- launcher/src/main/java/com/ttravlos/lc100launcher/MainActivity.kt
+- launcher/src/main/java/com/ttravlos/lc100launcher/ClimateTracker.kt
+- launcher/src/main/java/com/ttravlos/lc100launcher/MediaTracker.kt
+- launcher/src/main/java/com/ttravlos/lc100launcher/LauncherNotificationListener.kt
+- LAUNCHER_v0.11_NOTES.txt
+
+Test sequence:
+1. Build :launcher:assembleDebug.
+2. Install launcher-debug.apk over v0.10.
+3. Open Climate100, change temperature/fan/vent/A-C, return Home, and confirm launcher card follows.
+4. Tap media card once, grant Notification access, play/pause media, and return Home.
+5. Tap Apps and launch several apps from the grid; Back/Home should return to launcher.
