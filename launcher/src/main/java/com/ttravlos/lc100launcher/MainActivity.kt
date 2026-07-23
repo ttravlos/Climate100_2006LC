@@ -1,5 +1,7 @@
 package com.ttravlos.lc100launcher
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.preference.PreferenceManager
 import androidx.activity.ComponentActivity
@@ -40,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.app.ActivityCompat
 import kotlinx.coroutines.delay
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
@@ -47,14 +50,26 @@ import org.osmdroid.tileprovider.tilesource.TileSourcePolicy
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.util.MapTileIndex
 import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.Marker
 import java.io.File
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
 
+    private var locationState by mutableStateOf(
+        LocationUiState.searching("Initializing GPS")
+    )
+
+    private lateinit var locationTracker: LocationTracker
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        locationTracker = LocationTracker(this) { newState ->
+            runOnUiThread { locationState = newState }
+        }
 
         onBackPressedDispatcher.addCallback(
             this,
@@ -66,12 +81,47 @@ class MainActivity : ComponentActivity() {
         )
 
         setContent {
-            MaterialTheme(
-                colorScheme = darkColorScheme()
-            ) {
-                LauncherScreen()
+            MaterialTheme(colorScheme = darkColorScheme()) {
+                LauncherScreen(locationState)
             }
         }
+
+        if (!locationTracker.hasLocationPermission()) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                ),
+                LOCATION_PERMISSION_REQUEST
+            )
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        locationTracker.start()
+    }
+
+    override fun onStop() {
+        locationTracker.stop()
+        super.onStop()
+    }
+
+    @Deprecated("Deprecated in Android API")
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == LOCATION_PERMISSION_REQUEST) {
+            locationTracker.onPermissionResult()
+        }
+    }
+
+    companion object {
+        private const val LOCATION_PERMISSION_REQUEST = 1001
     }
 }
 
@@ -82,9 +132,10 @@ private val BorderColor = Color(0xFF37414D)
 private val PrimaryText = Color(0xFFF2F5F7)
 private val SecondaryText = Color(0xFF9DA8B3)
 private val Accent = Color(0xFF55B7FF)
+private val Warning = Color(0xFFFFC857)
 
 @Composable
-private fun LauncherScreen() {
+private fun LauncherScreen(locationState: LocationUiState) {
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = ScreenBackground
@@ -95,7 +146,7 @@ private fun LauncherScreen() {
                 .padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            StatusBar()
+            StatusBar(locationState)
 
             Row(
                 modifier = Modifier
@@ -104,6 +155,7 @@ private fun LauncherScreen() {
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 MapCard(
+                    locationState = locationState,
                     modifier = Modifier
                         .weight(1.65f)
                         .fillMaxHeight()
@@ -135,7 +187,7 @@ private fun LauncherScreen() {
 }
 
 @Composable
-private fun StatusBar() {
+private fun StatusBar(locationState: LocationUiState) {
     var currentTime by remember { mutableStateOf(formattedTime()) }
 
     LaunchedEffect(Unit) {
@@ -169,46 +221,35 @@ private fun StatusBar() {
         )
 
         Text(
-            text = "   Wi-Fi   GPS",
-            color = SecondaryText,
+            text = "   Wi-Fi   ${gpsStatusLabel(locationState)}",
+            color = if (locationState.kind == LocationUiState.Kind.FIXED) Accent else SecondaryText,
             fontSize = 19.sp
         )
     }
 }
 
 @Composable
-private fun MapCard(modifier: Modifier = Modifier) {
+private fun MapCard(
+    locationState: LocationUiState,
+    modifier: Modifier = Modifier
+) {
     val context = LocalContext.current
     val tileDiagnostics = remember(context) { MapTileDiagnostics(context) }
 
-    // Keep one stable MapView instance for the lifetime of this composition.
-    // Storing it in mutable Compose state caused DisposableEffect to dispose
-    // and detach the newly-created view as soon as the state key changed.
     val mapView = remember(context) {
-        val osmBasePath = File(
-            context.cacheDir,
-            "osmdroid"
-        ).apply { mkdirs() }
-
-        val osmTileCache = File(
-            osmBasePath,
-            "tiles"
-        ).apply { mkdirs() }
+        val osmBasePath = File(context.cacheDir, "osmdroid").apply { mkdirs() }
+        val osmTileCache = File(osmBasePath, "tiles").apply { mkdirs() }
 
         Configuration.getInstance().apply {
-            load(
-                context,
-                PreferenceManager.getDefaultSharedPreferences(context)
-            )
-            userAgentValue =
-                "${context.packageName}/0.9 (TEYES CC3 embedded map)"
+            load(context, PreferenceManager.getDefaultSharedPreferences(context))
+            userAgentValue = "${context.packageName}/0.10 (TEYES CC3 embedded map)"
             setOsmdroidBasePath(osmBasePath)
             setOsmdroidTileCache(osmTileCache)
             setDebugMode(true)
             setDebugMapView(true)
         }
 
-        tileDiagnostics.log("Creating MapView")
+        tileDiagnostics.log("Creating MapView v0.10")
         tileDiagnostics.log(
             "CACHE base=${osmBasePath.absolutePath} " +
                 "tiles=${osmTileCache.absolutePath} " +
@@ -249,29 +290,85 @@ private fun MapCard(modifier: Modifier = Modifier) {
             setBuiltInZoomControls(false)
             isTilesScaledToDpi = true
             controller.setZoom(4.5)
-            controller.setCenter(
-                GeoPoint(39.8283, -98.5795)
-            )
+            controller.setCenter(GeoPoint(39.8283, -98.5795))
         }
+    }
+
+    val locationMarker = remember(mapView) {
+        Marker(mapView).apply {
+            title = "Vehicle location"
+            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+            mapView.overlays.add(this)
+        }
+    }
+
+    var hasCenteredOnGps by remember(mapView) { mutableStateOf(false) }
+
+    LaunchedEffect(locationState.location) {
+        val fix = locationState.location ?: return@LaunchedEffect
+        val point = GeoPoint(fix.latitude, fix.longitude)
+        locationMarker.position = point
+        locationMarker.snippet =
+            "${fix.provider}, ±${fix.accuracyMeters.toInt()} m"
+        locationMarker.rotation = fix.bearing ?: 0f
+
+        if (!hasCenteredOnGps) {
+            mapView.controller.setZoom(16.0)
+            mapView.controller.animateTo(point)
+            hasCenteredOnGps = true
+        } else {
+            mapView.controller.animateTo(point)
+        }
+        mapView.invalidate()
     }
 
     DisposableEffect(mapView) {
         mapView.onResume()
-
         onDispose {
             mapView.onPause()
             mapView.onDetach()
         }
     }
 
-    DashboardCard(
-        modifier = modifier.clip(RoundedCornerShape(14.dp))
-    ) {
-        AndroidView(
-            modifier = Modifier.fillMaxSize(),
-            factory = { mapView },
-            update = { it.invalidate() }
-        )
+    DashboardCard(modifier = modifier.clip(RoundedCornerShape(14.dp))) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            AndroidView(
+                modifier = Modifier.fillMaxSize(),
+                factory = { mapView },
+                update = { it.invalidate() }
+            )
+
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(10.dp)
+                    .background(
+                        color = Color(0xCC080B0F),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    text = locationState.status,
+                    color = if (locationState.kind == LocationUiState.Kind.FIXED) Accent else Warning,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                locationState.location?.let { fix ->
+                    Text(
+                        text = String.format(
+                            Locale.US,
+                            "%.5f, %.5f  •  age %ds",
+                            fix.latitude,
+                            fix.longitude,
+                            fix.ageSeconds
+                        ),
+                        color = PrimaryText,
+                        fontSize = 13.sp
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -284,46 +381,15 @@ private fun ClimateCard(modifier: Modifier = Modifier) {
                 .padding(22.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(
-                text = "CLIMATE",
-                color = SecondaryText,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Bold
-            )
-
-            Row(
-                verticalAlignment = Alignment.Bottom
-            ) {
-                Text(
-                    text = "72°",
-                    color = PrimaryText,
-                    fontSize = 58.sp,
-                    fontWeight = FontWeight.Light
-                )
-
-                Column(
-                    modifier = Modifier.padding(start = 20.dp, bottom = 7.dp)
-                ) {
-                    Text(
-                        text = "AUTO",
-                        color = Accent,
-                        fontSize = 21.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    Text(
-                        text = "Fan 3",
-                        color = SecondaryText,
-                        fontSize = 19.sp
-                    )
+            Text("CLIMATE", color = SecondaryText, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text("72°", color = PrimaryText, fontSize = 58.sp, fontWeight = FontWeight.Light)
+                Column(modifier = Modifier.padding(start = 20.dp, bottom = 7.dp)) {
+                    Text("AUTO", color = Accent, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                    Text("Fan 3", color = SecondaryText, fontSize = 19.sp)
                 }
             }
-
-            Text(
-                text = "A/C on  •  Face + feet",
-                color = SecondaryText,
-                fontSize = 17.sp
-            )
+            Text("A/C on  •  Face + feet", color = SecondaryText, fontSize = 17.sp)
         }
     }
 }
@@ -337,29 +403,11 @@ private fun MediaCard(modifier: Modifier = Modifier) {
                 .padding(22.dp),
             verticalArrangement = Arrangement.Center
         ) {
-            Text(
-                text = "NOW PLAYING",
-                color = SecondaryText,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Bold
-            )
-
+            Text("NOW PLAYING", color = SecondaryText, fontSize = 17.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(20.dp))
-
-            Text(
-                text = "No media playing",
-                color = PrimaryText,
-                fontSize = 27.sp,
-                fontWeight = FontWeight.Medium
-            )
-
+            Text("No media playing", color = PrimaryText, fontSize = 27.sp, fontWeight = FontWeight.Medium)
             Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "Open a music app to begin",
-                color = SecondaryText,
-                fontSize = 18.sp
-            )
+            Text("Open a music app to begin", color = SecondaryText, fontSize = 18.sp)
         }
     }
 }
@@ -375,34 +423,22 @@ private fun AppButtonGrid() {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            LauncherButton("Navigation", Modifier.weight(1f)) {
-                AppLauncher.openNavigation(context)
-            }
-            LauncherButton("Music", Modifier.weight(1f)) {
-                AppLauncher.openMusic(context)
-            }
-            LauncherButton("Climate", Modifier.weight(1f)) {
-                AppLauncher.openClimate(context)
-            }
+            LauncherButton("Navigation", Modifier.weight(1f)) { AppLauncher.openNavigation(context) }
+            LauncherButton("Music", Modifier.weight(1f)) { AppLauncher.openMusic(context) }
+            LauncherButton("Climate", Modifier.weight(1f)) { AppLauncher.openClimate(context) }
         }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            LauncherButton("Phone", Modifier.weight(1f)) {
-                AppLauncher.openPhone(context)
-            }
-            LauncherButton("Home Assistant", Modifier.weight(1f)) {
-                AppLauncher.openHomeAssistant(context)
-            }
-            LauncherButton("Apps", Modifier.weight(1f)) {
-                AppLauncher.openApps(context)
-            }
+            LauncherButton("Phone", Modifier.weight(1f)) { AppLauncher.openPhone(context) }
+            LauncherButton("Home Assistant", Modifier.weight(1f)) { AppLauncher.openHomeAssistant(context) }
+            LauncherButton("Apps", Modifier.weight(1f)) { AppLauncher.openApps(context) }
         }
     }
-
 }
+
 @Composable
 private fun LauncherButton(
     label: String,
@@ -418,11 +454,7 @@ private fun LauncherButton(
             contentColor = PrimaryText
         )
     ) {
-        Text(
-            text = label,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.SemiBold
-        )
+        Text(text = label, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -433,22 +465,21 @@ private fun DashboardCard(
 ) {
     Box(
         modifier = modifier
-            .background(
-                color = CardBackground,
-                shape = RoundedCornerShape(14.dp)
-            )
-            .border(
-                width = 1.dp,
-                color = BorderColor,
-                shape = RoundedCornerShape(14.dp)
-            )
+            .background(color = CardBackground, shape = RoundedCornerShape(14.dp))
+            .border(width = 1.dp, color = BorderColor, shape = RoundedCornerShape(14.dp))
     ) {
         content()
     }
 }
 
-private fun formattedTime(): String {
-    return LocalTime.now().format(
-        DateTimeFormatter.ofPattern("h:mm a")
-    )
+private fun gpsStatusLabel(state: LocationUiState): String = when (state.kind) {
+    LocationUiState.Kind.FIXED -> "GPS FIX"
+    LocationUiState.Kind.SEARCHING -> "GPS…"
+    LocationUiState.Kind.PERMISSION_REQUIRED,
+    LocationUiState.Kind.PERMISSION_DENIED -> "GPS PERM"
+    LocationUiState.Kind.DISABLED -> "GPS OFF"
+    LocationUiState.Kind.ERROR -> "GPS ERR"
 }
+
+private fun formattedTime(): String =
+    LocalTime.now().format(DateTimeFormatter.ofPattern("h:mm a"))

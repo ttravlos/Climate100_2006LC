@@ -1,0 +1,28 @@
+LC100 Launcher v0.10 GPS pass
+
+Changes
+- Added ACCESS_FINE_LOCATION and ACCESS_COARSE_LOCATION permissions.
+- Added runtime permission request and result handling.
+- Added framework-only LocationManager tracking (no Google Play Services dependency).
+- Enumerates and logs every Android location provider and enabled state.
+- Reads all last-known locations before waiting for a live fix.
+- Subscribes to every enabled provider at 1-second / 0-meter intervals.
+- Selects the best available fix based on age, accuracy, and provider.
+- Adds a live vehicle marker and recenters the embedded map.
+- Adds visible GPS state and coordinates to the launcher UI.
+- Adds detailed rotating diagnostics at:
+  Android/data/com.ttravlos.lc100launcher.dev/files/diagnostics/gps.log
+- Bumped launcher version to 0.10-dev / versionCode 10.
+
+Test sequence
+1. Build and install launcher debug APK.
+2. Accept the location permission prompt.
+3. Move the vehicle/head unit outdoors with a clear view of the sky.
+4. Watch the map status panel for provider/fix/accuracy information.
+5. If no fix appears, copy gps.log from the path above.
+
+Build validation note
+An assembleDebug build was attempted in the ChatGPT environment, but Gradle 7.4
+was not cached and the environment cannot reach services.gradle.org. Therefore the
+project could not be compiled here. Android Studio should use/download the wrapper
+normally on the development PC.
