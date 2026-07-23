@@ -1,6 +1,7 @@
 package com.ttravlos.lc100launcher
 
 import android.os.Bundle
+import android.preference.PreferenceManager
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
@@ -24,6 +25,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,12 +33,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.delay
+import org.osmdroid.config.Configuration
+import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
+import org.osmdroid.tileprovider.tilesource.TileSourcePolicy
+import org.osmdroid.util.GeoPoint
+import org.osmdroid.util.MapTileIndex
+import org.osmdroid.views.MapView
+import java.io.File
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
@@ -167,39 +178,100 @@ private fun StatusBar() {
 
 @Composable
 private fun MapCard(modifier: Modifier = Modifier) {
-    DashboardCard(modifier = modifier) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
+    val context = LocalContext.current
+    val tileDiagnostics = remember(context) { MapTileDiagnostics(context) }
+
+    // Keep one stable MapView instance for the lifetime of this composition.
+    // Storing it in mutable Compose state caused DisposableEffect to dispose
+    // and detach the newly-created view as soon as the state key changed.
+    val mapView = remember(context) {
+        val osmBasePath = File(
+            context.cacheDir,
+            "osmdroid"
+        ).apply { mkdirs() }
+
+        val osmTileCache = File(
+            osmBasePath,
+            "tiles"
+        ).apply { mkdirs() }
+
+        Configuration.getInstance().apply {
+            load(
+                context,
+                PreferenceManager.getDefaultSharedPreferences(context)
+            )
+            userAgentValue =
+                "${context.packageName}/0.9 (TEYES CC3 embedded map)"
+            setOsmdroidBasePath(osmBasePath)
+            setOsmdroidTileCache(osmTileCache)
+            setDebugMode(true)
+            setDebugMapView(true)
+        }
+
+        tileDiagnostics.log("Creating MapView")
+        tileDiagnostics.log(
+            "CACHE base=${osmBasePath.absolutePath} " +
+                "tiles=${osmTileCache.absolutePath} " +
+                "baseWritable=${osmBasePath.canWrite()} " +
+                "tilesWritable=${osmTileCache.canWrite()}"
+        )
+        tileDiagnostics.probe()
+
+        val diagnosticTileSource = object : OnlineTileSourceBase(
+            "OpenStreetMap-Diagnostic",
+            0,
+            19,
+            256,
+            ".png",
+            arrayOf("https://tile.openstreetmap.org/"),
+            "© OpenStreetMap contributors",
+            TileSourcePolicy(
+                2,
+                TileSourcePolicy.FLAG_NO_BULK or
+                    TileSourcePolicy.FLAG_NO_PREVENTIVE or
+                    TileSourcePolicy.FLAG_USER_AGENT_MEANINGFUL or
+                    TileSourcePolicy.FLAG_USER_AGENT_NORMALIZED
+            )
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "NAVIGATION",
-                    color = SecondaryText,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                Text(
-                    text = "Map area",
-                    color = PrimaryText,
-                    fontSize = 38.sp,
-                    fontWeight = FontWeight.Medium
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Text(
-                    text = "Google Maps or preferred navigation",
-                    color = SecondaryText,
-                    fontSize = 18.sp
-                )
+            override fun getTileURLString(mapTileIndex: Long): String {
+                val url = baseUrl +
+                    MapTileIndex.getZoom(mapTileIndex) + "/" +
+                    MapTileIndex.getX(mapTileIndex) + "/" +
+                    MapTileIndex.getY(mapTileIndex) + imageFilenameEnding()
+                tileDiagnostics.log("TILE $url")
+                return url
             }
         }
+
+        MapView(context).apply {
+            setTileSource(diagnosticTileSource)
+            setMultiTouchControls(true)
+            setBuiltInZoomControls(false)
+            isTilesScaledToDpi = true
+            controller.setZoom(4.5)
+            controller.setCenter(
+                GeoPoint(39.8283, -98.5795)
+            )
+        }
+    }
+
+    DisposableEffect(mapView) {
+        mapView.onResume()
+
+        onDispose {
+            mapView.onPause()
+            mapView.onDetach()
+        }
+    }
+
+    DashboardCard(
+        modifier = modifier.clip(RoundedCornerShape(14.dp))
+    ) {
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { mapView },
+            update = { it.invalidate() }
+        )
     }
 }
 

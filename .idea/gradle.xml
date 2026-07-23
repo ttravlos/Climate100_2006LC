@@ -11,6 +11,7 @@
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/climate" />
             <option value="$PROJECT_DIR$/fytcanbusmonitor" />
+            <option value="$PROJECT_DIR$/launcher" />
           </set>
         </option>
         <option name="resolveExternalAnnotations" value="false" />
