@@ -21,3 +21,5 @@ Changes to allow split screen mode to be more readable.
 
 Giant thanks to Ryan for the tremendous amount of work creating the app!
 
+# Launcher
+Created a substitute launcher for the 2006 LC100 using the Teyes CC3
