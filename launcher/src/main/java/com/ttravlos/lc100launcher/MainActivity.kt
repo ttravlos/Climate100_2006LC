@@ -4,7 +4,9 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.provider.Settings
+import android.text.TextUtils
 import android.widget.ImageView
+import android.widget.TextView
 import android.os.Bundle
 import android.preference.PreferenceManager
 import androidx.activity.ComponentActivity
@@ -160,6 +162,8 @@ private val PrimaryText = Color(0xFFF2F5F7)
 private val SecondaryText = Color(0xFF9DA8B3)
 private val Accent = Color(0xFF55B7FF)
 private val Warning = Color(0xFFFFC857)
+private val DaylightSecondaryText = Color(0xFFD8D8D8)
+private const val VEHICLE_MARKER_BEARING_OFFSET_DEGREES = -90f
 
 @Composable
 private fun LauncherScreen(
@@ -352,7 +356,10 @@ private fun MapCard(
         locationMarker.position = point
         locationMarker.snippet =
             "${fix.provider}, ±${fix.accuracyMeters.toInt()} m"
-        locationMarker.rotation = fix.bearing ?: 0f
+        fix.bearing?.let { bearing ->
+            locationMarker.rotation =
+                (bearing + VEHICLE_MARKER_BEARING_OFFSET_DEGREES + 360f) % 360f
+        }
 
         if (!hasCenteredOnGps) {
             mapView.controller.setZoom(16.0)
@@ -422,7 +429,7 @@ private fun ClimateCard(state: ClimateUiState, modifier: Modifier = Modifier) {
             verticalArrangement = Arrangement.SpaceBetween
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("CLIMATE", color = SecondaryText, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text("CLIMATE", color = DaylightSecondaryText, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 Text(state.status, color = if (state.status == "Live") Accent else Warning, fontSize = 13.sp)
             }
             Row(verticalAlignment = Alignment.Bottom) {
@@ -433,8 +440,8 @@ private fun ClimateCard(state: ClimateUiState, modifier: Modifier = Modifier) {
                     fontWeight = FontWeight.Light
                 )
                 Column(modifier = Modifier.padding(start = 14.dp, bottom = 3.dp)) {
-                    Text(if (state.auto) "AUTO" else "MANUAL", color = if (state.auto) Accent else SecondaryText, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                    Text("Fan ${state.fanSpeed ?: "—"}", color = SecondaryText, fontSize = 15.sp)
+                    Text(if (state.auto) "AUTO" else "MANUAL", color = if (state.auto) Accent else DaylightSecondaryText, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                    Text("Fan ${state.fanSpeed ?: "—"}", color = DaylightSecondaryText, fontSize = 15.sp)
                 }
             }
             val features = buildList {
@@ -442,7 +449,7 @@ private fun ClimateCard(state: ClimateUiState, modifier: Modifier = Modifier) {
                 if (state.recirc) add("Recirc")
                 if (state.defrost) add("Defrost") else add(state.ventLabel)
             }
-            Text(features.joinToString("  •  "), color = SecondaryText, fontSize = 13.sp, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+            Text(features.joinToString("  •  "), color = DaylightSecondaryText, fontSize = 13.sp, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -463,7 +470,7 @@ private fun MediaCard(state: MediaUiState, modifier: Modifier = Modifier) {
             modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.Top
         ) {
-            Text("NOW PLAYING", color = SecondaryText, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("NOW PLAYING", color = DaylightSecondaryText, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(8.dp))
             when {
                 state.permissionRequired -> {
@@ -472,16 +479,37 @@ private fun MediaCard(state: MediaUiState, modifier: Modifier = Modifier) {
                     Text("Tap here, then enable LC100 Launcher", color = Warning, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
                 state.title != null -> {
-                    Text(state.title, color = PrimaryText, fontSize = 19.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    AndroidView(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(28.dp),
+                        factory = { viewContext ->
+                            TextView(viewContext).apply {
+                                setTextColor(android.graphics.Color.rgb(242, 245, 247))
+                                textSize = 19f
+                                setSingleLine(true)
+                                ellipsize = TextUtils.TruncateAt.MARQUEE
+                                marqueeRepeatLimit = -1
+                                isSelected = true
+                                isFocusable = true
+                                isFocusableInTouchMode = true
+                                includeFontPadding = false
+                            }
+                        },
+                        update = { titleView ->
+                            titleView.text = state.title
+                            titleView.isSelected = true
+                        }
+                    )
                     Spacer(modifier = Modifier.height(3.dp))
-                    Text(state.artist ?: state.appName.orEmpty(), color = SecondaryText, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(state.artist ?: state.appName.orEmpty(), color = DaylightSecondaryText, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Spacer(modifier = Modifier.height(2.dp))
-                    Text(if (state.playing) "Playing • ${state.appName.orEmpty()}" else "Paused • ${state.appName.orEmpty()}", color = if (state.playing) Accent else SecondaryText, fontSize = 12.sp, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                    Text(if (state.playing) "Playing • ${state.appName.orEmpty()}" else "Paused • ${state.appName.orEmpty()}", color = if (state.playing) Accent else DaylightSecondaryText, fontSize = 12.sp, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                 }
                 else -> {
                     Text("No media playing", color = PrimaryText, fontSize = 21.sp, fontWeight = FontWeight.Medium)
                     Spacer(modifier = Modifier.height(6.dp))
-                    Text("Tap to open music", color = SecondaryText, fontSize = 15.sp)
+                    Text("Tap to open music", color = DaylightSecondaryText, fontSize = 15.sp)
                 }
             }
         }
@@ -608,4 +636,4 @@ private fun gpsStatusLabel(state: LocationUiState): String = when (state.kind) {
 }
 
 private fun formattedTime(): String =
-    LocalTime.now().format(DateTimeFormatter.ofPattern("h:mm a"))
+    LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))
